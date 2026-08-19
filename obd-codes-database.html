@@ -58,6 +58,20 @@
   .chip .rng{color:var(--ink3); font-size:10.5px; margin-right:3px}
   .chip.active{border-color:transparent; font-weight:500}
 
+  .mfr-row{display:flex; align-items:center; gap:8px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line)}
+  .mfr-row label{font-size:12.5px; color:var(--ink2); flex-shrink:0}
+  .mfr-row select{
+    flex:1; font-family:inherit; font-size:13px; padding:8px 10px;
+    background:var(--bg); border:1px solid var(--line); border-radius:8px; color:var(--ink);
+  }
+
+  .mfr-tag{
+    font-size:10.5px; padding:2px 8px; border-radius:999px; white-space:nowrap; flex-shrink:0;
+    font-weight:500;
+  }
+  .mfr-tag.generic{background:#eef5e9; color:#4f7a3b}
+  .mfr-tag.specific{background:#fdf0e2; color:#9a5b1e}
+
   .count-line{font-size:12.5px; color:var(--ink3); margin:22px 4px 10px; text-align:center}
 
   .list{display:flex; flex-direction:column; gap:10px}
@@ -111,13 +125,17 @@
   <div class="hero">
     <p class="eyebrow">רכבים זה לזה</p>
     <h1>מאגר קודי תקלה OBD-II</h1>
-    <p>חפשו לפי מספר קוד (למשל P0420) או מילת מפתח בעברית. המאגר מכיל קודים גנריים שתקפים לכל רכב עם OBD-II, ללא קשר ליצרן.</p>
+    <p>חפשו לפי מספר קוד (למשל P0420) או מילת מפתח בעברית. המאגר כולל קודים גנריים שתקפים לכל רכב עם OBD-II, ובנוסף קודים ספציפיים ליצרנים נבחרים - מסומנים בבירור בכל כרטיס.</p>
     <div class="rule"></div>
   </div>
 
   <div class="searchbar">
     <input type="text" class="search" id="searchBox" placeholder="חפשו קוד או מילה - P0420, קטליזטור, גיר..." autocomplete="off">
     <div class="chips" id="chipsRow"></div>
+    <div class="mfr-row">
+      <label for="mfrSelect">יצרן:</label>
+      <select id="mfrSelect"></select>
+    </div>
   </div>
 
   <p class="count-line" id="countLine"></p>
@@ -129,13 +147,14 @@
     <div style="margin-top:12px">
       כל קוד מורכב מ-5 תווים: <b>אות</b> + <b>4 ספרות</b>.<br><br>
       <b>האות הראשונה</b> - מערכת: P = הנעה (הנפוצה ביותר), B = מרכב, C = שילדה, U = רשת תקשורת.<br>
-      <b>הספרה השנייה</b> - סוג הקוד: <b>0</b> = קוד גנרי (תקן, זהה בכל היצרנים) &middot; <b>1</b> = קוד ספציפי ליצרן (לא מופיע במאגר זה).<br>
+      <b>הספרה השנייה</b> - סוג הקוד: <b>0</b> = קוד גנרי (תקן, זהה בכל היצרנים) &middot; <b>1</b> = קוד ספציפי ליצרן (המשמעות שונה מיצרן ליצרן).<br>
       <b>שתי הספרות הבאות</b> - תת-המערכת הספציפית.<br><br>
+      <b>לגבי קודים ספציפיים ליצרן (P1xxx):</b> אותו מספר קוד יכול להצביע על תקלה שונה לגמרי בין יצרן ליצרן, אז חשוב לוודא בכרטיס עצמו לאיזה יצרן הוא שייך לפני שמסתמכים עליו. המידע עליהם פחות אחיד ממקורות שונים ברשת מאשר הקודים הגנריים, ומומלץ לאמת מול מוסך/סוכנות במקרים קריטיים.<br><br>
       <b>חשוב לזכור:</b> קוד תקלה מצביע על מערכת בעייתית, לא בהכרח על החלק שצריך להחליף. מומלץ לאבחן לעומק לפני שקונים חלקים.
     </div>
   </details>
 
-  <div class="foot">מאגר קודים גנריים בלבד &middot; לקודים ספציפיים ליצרן יש להיוועץ במוסך &middot; נבנה עבור פורום רכבים זה לזה</div>
+  <div class="foot">קודים גנריים תקפים לכל רכב &middot; קודים ספציפיים ליצרן מסומנים ומיועדים לדגמים של אותו יצרן בלבד &middot; נבנה עבור פורום רכבים זה לזה</div>
 
 </div>
 
@@ -147,11 +166,22 @@ const listEl = document.getElementById('list');
 const countLine = document.getElementById('countLine');
 const emptyState = document.getElementById('emptyState');
 const searchBox = document.getElementById('searchBox');
+const mfrSelect = document.getElementById('mfrSelect');
 
 let activeCat = 'all';
-let openCode = null;
+let activeMfr = 'all';
+let openKey = null;
 
 function catInfo(key){ return CATS.find(c => c.key === key); }
+function itemKey(item){ return item.c + '|' + (item.mfr || ''); }
+
+function populateMfrSelect(){
+  const mfrs = Array.from(new Set(DATA.filter(d => d.mfr).map(d => d.mfr))).sort((a,b) => a.localeCompare(b, 'he'));
+  const opts = ['<option value="all">כל היצרנים (כולל גנרי)</option>', '<option value="__generic__">גנרי בלבד</option>']
+    .concat(mfrs.map(m => '<option value="' + m + '">' + m + '</option>'));
+  mfrSelect.innerHTML = opts.join('');
+  mfrSelect.value = activeMfr;
+}
 
 function renderChips(){
   chipsRow.innerHTML = '';
@@ -177,13 +207,19 @@ function renderChips(){
 function matchesSearch(item, q){
   if(!q) return true;
   q = q.toLowerCase().trim();
-  return item.c.toLowerCase().includes(q) || item.t.includes(q) || item.d.includes(q) || item.cause.includes(q) || item.sym.includes(q);
+  return item.c.toLowerCase().includes(q) || item.t.includes(q) || item.d.includes(q) || item.cause.includes(q) || item.sym.includes(q) || (item.mfr || '').includes(q);
+}
+
+function matchesMfr(item){
+  if(activeMfr === 'all') return true;
+  if(activeMfr === '__generic__') return !item.mfr;
+  return item.mfr === activeMfr;
 }
 
 function renderList(){
   renderChips();
   const q = searchBox.value;
-  const filtered = DATA.filter(item => (activeCat === 'all' || item.cat === activeCat) && matchesSearch(item, q));
+  const filtered = DATA.filter(item => (activeCat === 'all' || item.cat === activeCat) && matchesMfr(item) && matchesSearch(item, q));
 
   countLine.textContent = 'מציג ' + filtered.length + ' מתוך ' + DATA.length + ' קודים';
   listEl.innerHTML = '';
@@ -193,16 +229,22 @@ function renderList(){
 
   filtered.forEach(item => {
     const cat = catInfo(item.cat);
+    const key = itemKey(item);
     const card = document.createElement('div');
-    card.className = 'card' + (openCode === item.c ? ' open' : '');
+    card.className = 'card' + (openKey === key ? ' open' : '');
+
+    const mfrTag = item.mfr
+      ? '<span class="mfr-tag specific">' + item.mfr + '</span>'
+      : '<span class="mfr-tag generic">גנרי</span>';
 
     const head = document.createElement('div');
     head.className = 'card-head';
     head.innerHTML =
       '<span class="card-badge" style="background:' + cat.bg + ';color:' + cat.fg + '">' + item.c + '</span>' +
       '<span class="card-title">' + item.t + '</span>' +
+      mfrTag +
       '<span class="card-arrow">&#9662;</span>';
-    head.onclick = () => { openCode = (openCode === item.c) ? null : item.c; renderList(); };
+    head.onclick = () => { openKey = (openKey === key) ? null : key; renderList(); };
 
     const body = document.createElement('div');
     body.className = 'card-body';
@@ -220,6 +262,8 @@ function renderList(){
 }
 
 searchBox.addEventListener('input', renderList);
+mfrSelect.addEventListener('change', () => { activeMfr = mfrSelect.value; renderList(); });
+populateMfrSelect();
 renderList();
 </script>
 </body>
