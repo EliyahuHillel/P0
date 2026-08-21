@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>עזרה חכמה בקניית רכב</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf7f2; --paper:#ffffff; --line:#e9e3d8;
+    --ink:#332f28; --ink2:#867d6e; --ink3:#a89f8f;
+    --accent:#7c9885; --accent-deep:#4f6b57;
+    --warn-bg:#fdf0e2; --warn-fg:#9a5b1e;
+    --err-bg:#fbeaea; --err-fg:#a14444;
+    --ok-bg:#eef5e9; --ok-fg:#4f7a3b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Rubik", Arial, sans-serif; line-height:1.7;
+  }
+  .wrap{max-width:640px; margin:0 auto; padding:36px 18px 60px}
+
+  .hero{ text-align:center; margin-bottom:28px; padding:0 8px }
+  .hero .eyebrow{
+    font-size:12.5px; color:var(--accent-deep); letter-spacing:1.5px;
+    text-transform:uppercase; margin:0 0 10px; font-weight:600;
+  }
+  .hero h1{
+    font-family:"Frank Ruhl Libre", serif; font-weight:700;
+    font-size:30px; margin:0 0 12px; color:var(--ink);
+  }
+  .hero p{ font-size:14.5px; color:var(--ink2); max-width:52ch; margin:0 auto; }
+  .hero .rule{ width:56px; height:2px; background:var(--accent); margin:18px auto 0; border-radius:2px; }
+
+  .card{
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:20px; margin-bottom:16px; box-shadow:0 2px 14px rgba(80,70,50,0.05);
+  }
+
+  .field{ margin-bottom:20px }
+  .field:last-child{ margin-bottom:0 }
+  .field label{
+    display:block; font-size:13.5px; font-weight:500; color:var(--ink); margin-bottom:8px;
+  }
+  .field .hint{ font-size:11.5px; color:var(--ink3); margin-top:5px }
+
+  input[type=text], input[type=number], select, textarea{
+    width:100%; padding:11px 13px; font-size:14.5px; font-family:inherit;
+    background:var(--bg); border:1px solid var(--line); border-radius:9px; color:var(--ink);
+  }
+  input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--accent) }
+  textarea{ resize:vertical; min-height:70px }
+
+  .radio-row, .check-row{ display:flex; flex-wrap:wrap; gap:8px }
+  .pill{
+    font-size:13px; padding:8px 14px; border-radius:999px; border:1px solid var(--line);
+    background:var(--bg); color:var(--ink2); cursor:pointer; user-select:none; transition:all .15s;
+  }
+  .pill.active{ background:var(--accent-deep); color:#fff; border-color:transparent; font-weight:500 }
+
+  .slider-row{ display:flex; align-items:center; gap:12px }
+  .slider-row input[type=range]{ flex:1; accent-color:var(--accent-deep) }
+  .slider-val{
+    min-width:28px; text-align:center; font-weight:600; color:var(--accent-deep); font-size:14px;
+  }
+  .slider-labels{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--ink3); margin-top:4px }
+
+  .btn{
+    width:100%; padding:15px; font-size:15.5px; font-weight:600; font-family:inherit;
+    background:var(--accent-deep); color:#fff; border:none; border-radius:11px; cursor:pointer;
+    transition:opacity .15s;
+  }
+  .btn:hover{ opacity:.92 }
+  .btn:disabled{ background:var(--ink3); cursor:not-allowed }
+
+  .status{
+    margin-top:14px; padding:13px 15px; border-radius:10px; font-size:13.5px; display:none; line-height:1.6;
+  }
+  .status.show{ display:block }
+  .status.warn{ background:var(--warn-bg); color:var(--warn-fg) }
+  .status.err{ background:var(--err-bg); color:var(--err-fg) }
+  .status.ok{ background:var(--ok-bg); color:var(--ok-fg) }
+  .status a{ color:inherit; font-weight:600 }
+
+  .foot{
+    margin-top:20px; font-size:11.5px; color:var(--ink3); text-align:center;
+    padding-top:16px; border-top:1px solid var(--line);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <p class="eyebrow">רכבים זה לזה</p>
+    <h1>עזרה חכמה בקניית רכב</h1>
+    <p>תמלאו כאן פעם אחת, וחברי הפורום יוכלו לעזור לכם מיד ובדיוק - בלי סחיטת פרטים ובלי חכות.</p>
+    <div class="rule"></div>
+  </div>
+
+  <form id="carForm">
+    <div class="card">
+      <div class="field">
+        <label>תקציב (עד כמה, בש"ח)</label>
+        <input type="number" id="f_budget" placeholder="למשל: 60000" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>ייעוד עיקרי</label>
+        <div class="radio-row" data-group="purpose">
+          <div class="pill" data-value="עירוני יומיומי">עירוני יומיומי</div>
+          <div class="pill" data-value="משפחתי">משפחתי</div>
+          <div class="pill" data-value="בין-עירוני / כביש">בין-עירוני / כביש</div>
+          <div class="pill" data-value="שטח">שטח</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>מספר נוסעים קבוע</label>
+        <select id="f_passengers">
+          <option value="">בחרו...</option>
+          <option>1-2</option><option>3-4</option><option>5</option><option>6-7+</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>נסועה שנתית משוערת (ק"מ)</label>
+        <select id="f_mileage">
+          <option value="">בחרו...</option>
+          <option>עד 10,000</option><option>10,000-20,000</option><option>20,000-30,000</option><option>מעל 30,000</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="field">
+        <label>כמה חשוב לך חיסכון בדלק? <span class="slider-val" id="v_econ">3</span></label>
+        <div class="slider-row"><input type="range" id="f_econ" min="1" max="5" value="3"></div>
+        <div class="slider-labels"><span>לא חשוב</span><span>קריטי</span></div>
+      </div>
+      <div class="field">
+        <label>כמה חשוב לך כוח/עוצמה? <span class="slider-val" id="v_power">3</span></label>
+        <div class="slider-row"><input type="range" id="f_power" min="1" max="5" value="3"></div>
+        <div class="slider-labels"><span>לא חשוב</span><span>קריטי</span></div>
+      </div>
+      <div class="field">
+        <label>כמה חשוב לך אמינות ועלות אחזקה נמוכה? <span class="slider-val" id="v_reliab">3</span></label>
+        <div class="slider-row"><input type="range" id="f_reliab" min="1" max="5" value="3"></div>
+        <div class="slider-labels"><span>לא חשוב</span><span>קריטי</span></div>
+      </div>
+      <div class="field">
+        <label>כמה חשובה לך נוחות נסיעה? <span class="slider-val" id="v_comfort">3</span></label>
+        <div class="slider-row"><input type="range" id="f_comfort" min="1" max="5" value="3"></div>
+        <div class="slider-labels"><span>לא חשוב</span><span>קריטי</span></div>
+      </div>
+      <div class="field">
+        <label>כמה חשוב לך גודל תא מטען? <span class="slider-val" id="v_trunk">3</span></label>
+        <div class="slider-row"><input type="range" id="f_trunk" min="1" max="5" value="3"></div>
+        <div class="slider-labels"><span>לא חשוב</span><span>קריטי</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="field">
+        <label>העדפת גיר</label>
+        <div class="radio-row" data-group="gear">
+          <div class="pill" data-value="אוטומט">אוטומט</div>
+          <div class="pill" data-value="ידני">ידני</div>
+          <div class="pill" data-value="לא משנה">לא משנה</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>העדפת הנעה (אפשר כמה)</label>
+        <div class="check-row" data-group="fuel" data-multi="1">
+          <div class="pill" data-value="בנזין">בנזין</div>
+          <div class="pill" data-value="דיזל">דיזל</div>
+          <div class="pill" data-value="גז">גז (LPG)</div>
+          <div class="pill" data-value="היברידי">היברידי</div>
+          <div class="pill" data-value="חשמלי">חשמלי</div>
+          <div class="pill" data-value="לא משנה">לא משנה</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>יד (בעלות קודמת)</label>
+        <div class="radio-row" data-group="hand">
+          <div class="pill" data-value="יד ראשונה בלבד">יד ראשונה בלבד</div>
+          <div class="pill" data-value="יד 2-3 בסדר">יד 2-3 בסדר</div>
+          <div class="pill" data-value="לא משנה">לא משנה</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>אזור מגורים (לצורך זמינות מוסכים/עסקאות)</label>
+        <input type="text" id="f_region" placeholder="למשל: מרכז, שרון, דרום...">
+      </div>
+      <div class="field">
+        <label>הערות נוספות (לא חובה)</label>
+        <textarea id="f_notes" placeholder="כל דבר נוסף שחשוב שנדע..."></textarea>
+      </div>
+    </div>
+
+    <button type="submit" class="btn" id="submitBtn">פרסם בפורום</button>
+    <div class="status" id="status"></div>
+  </form>
+
+  <div class="foot">רכבים זה לזה &middot; המידע יפורסם כפוסט חדש בשמכם, בפורום</div>
+</div>
+
+<script>
+// TODO: once the "בקשות רכב" category exists, set its numeric cid here.
+const CATEGORY_ID = null;
+const FORUM_BASE = 'https://rechavimzelaze.ovh';
+
+const statusEl = document.getElementById('status');
+const submitBtn = document.getElementById('submitBtn');
+
+function showStatus(kind, html){
+  statusEl.className = 'status show ' + kind;
+  statusEl.innerHTML = html;
+}
+
+// Pill group handling (single-select radio-style, or multi-select checkbox-style)
+document.querySelectorAll('[data-group]').forEach(group => {
+  const multi = group.dataset.multi === '1';
+  group.querySelectorAll('.pill').forEach(pill => {
+    pill.onclick = () => {
+      if(multi){
+        pill.classList.toggle('active');
+      } else {
+        group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+      }
+    };
+  });
+});
+
+// Sliders
+['econ','power','reliab','comfort','trunk'].forEach(key => {
+  const input = document.getElementById('f_' + key);
+  const out = document.getElementById('v_' + key);
+  input.addEventListener('input', () => out.textContent = input.value);
+});
+
+function getGroupValue(name){
+  const group = document.querySelector('[data-group="' + name + '"]');
+  const active = group.querySelectorAll('.pill.active');
+  return Array.from(active).map(p => p.dataset.value);
+}
+
+function buildPostContent(){
+  const budget = document.getElementById('f_budget').value || 'לא צוין';
+  const purpose = getGroupValue('purpose')[0] || 'לא צוין';
+  const passengers = document.getElementById('f_passengers').value || 'לא צוין';
+  const mileage = document.getElementById('f_mileage').value || 'לא צוין';
+  const econ = document.getElementById('f_econ').value;
+  const power = document.getElementById('f_power').value;
+  const reliab = document.getElementById('f_reliab').value;
+  const comfort = document.getElementById('f_comfort').value;
+  const trunk = document.getElementById('f_trunk').value;
+  const gear = getGroupValue('gear')[0] || 'לא משנה';
+  const fuel = getGroupValue('fuel').join(', ') || 'לא צוין';
+  const hand = getGroupValue('hand')[0] || 'לא משנה';
+  const region = document.getElementById('f_region').value || 'לא צוין';
+  const notes = document.getElementById('f_notes').value.trim();
+
+  let content = '### מחפש/ת רכב - פרטים מלאים\n\n';
+  content += '| שדה | ערך |\n|---|---|\n';
+  content += '| תקציב | עד ' + budget + ' ש"ח |\n';
+  content += '| ייעוד עיקרי | ' + purpose + ' |\n';
+  content += '| מספר נוסעים | ' + passengers + ' |\n';
+  content += '| נסועה שנתית | ' + mileage + ' ק"מ |\n';
+  content += '| חשיבות חיסכון בדלק | ' + econ + '/5 |\n';
+  content += '| חשיבות כוח/עוצמה | ' + power + '/5 |\n';
+  content += '| חשיבות אמינות | ' + reliab + '/5 |\n';
+  content += '| חשיבות נוחות | ' + comfort + '/5 |\n';
+  content += '| חשיבות גודל מטען | ' + trunk + '/5 |\n';
+  content += '| גיר | ' + gear + ' |\n';
+  content += '| סוג הנעה | ' + fuel + ' |\n';
+  content += '| יד | ' + hand + ' |\n';
+  content += '| אזור | ' + region + ' |\n';
+  if(notes) content += '\n**הערות נוספות:** ' + notes + '\n';
+  content += '\n---\n_פורסם באמצעות טופס "עזרה חכמה בקניית רכב"_';
+
+  const title = 'מחפש/ת רכב - תקציב עד ' + budget + ' ש"ח';
+  return { title, content };
+}
+
+async function getCsrfAndLogin(){
+  const res = await fetch(FORUM_BASE + '/api/config', { credentials: 'include' });
+  if(!res.ok) throw new Error('שגיאת רשת מול הפורום (' + res.status + ')');
+  const data = await res.json();
+  return data;
+}
+
+document.getElementById('carForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  statusEl.className = 'status';
+
+  if(CATEGORY_ID === null){
+    showStatus('warn', 'הטופס עדיין לא מחובר לקטגוריה בפורום - זמנית אי אפשר לפרסם דרכו. נא לפנות למנהל.');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'שולח...';
+
+  try{
+    const config = await getCsrfAndLogin();
+    if(!config.loggedIn){
+      showStatus('warn', 'צריך להיות מחוברים לפורום באותו דפדפן כדי לפרסם. <a href="' + FORUM_BASE + '/login" target="_blank">להתחברות</a>, ואז לנסות שוב.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'פרסם בפורום';
+      return;
+    }
+
+    const { title, content } = buildPostContent();
+
+    const postRes = await fetch(FORUM_BASE + '/api/v3/topics', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': config.csrf_token
+      },
+      body: JSON.stringify({ cid: CATEGORY_ID, title, content })
+    });
+
+    const result = await postRes.json();
+
+    if(postRes.ok && result.status && result.status.code === 'ok'){
+      const tid = result.response && result.response.topicData ? result.response.topicData.tid : null;
+      const link = tid ? (FORUM_BASE + '/topic/' + tid) : FORUM_BASE;
+      showStatus('ok', 'הפוסט פורסם בהצלחה! <a href="' + link + '" target="_blank">לצפייה בפוסט</a>');
+      document.getElementById('carForm').reset();
+      document.querySelectorAll('.pill.active').forEach(p => p.classList.remove('active'));
+      ['econ','power','reliab','comfort','trunk'].forEach(key => {
+        document.getElementById('f_' + key).value = 3;
+        document.getElementById('v_' + key).textContent = 3;
+      });
+    } else {
+      const msg = (result.status && result.status.message) || ('שגיאה לא צפויה (' + postRes.status + ')');
+      showStatus('err', 'הפרסום נכשל: ' + msg);
+    }
+  } catch(err){
+    showStatus('err', 'שגיאת תקשורת מול הפורום: ' + err.message + '. אם זו הפעם הראשונה, ייתכן שההגדרות עדיין לא נכנסו לתוקף בצד הפורום.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'פרסם בפורום';
+  }
+});
+</script>
+</body>
+</html>
