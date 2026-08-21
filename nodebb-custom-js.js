@@ -28,9 +28,12 @@
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
 			+ '#' + BTN_ID + '{position:fixed;bottom:24px;left:24px;z-index:1090;'
-			+ 'background:#4f6b57;color:#fff;border:none;border-radius:999px;'
-			+ 'padding:14px 22px;font-family:Rubik,Arial,sans-serif;font-size:14.5px;'
-			+ 'font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.18);cursor:pointer;}'
+			+ 'background:#faf7f2;color:#4f6b57;border:1px solid #e9e3d8;border-radius:999px;'
+			+ 'padding:12px 20px;font-family:"Frank Ruhl Libre",Rubik,Arial,serif;font-size:13.5px;'
+			+ 'font-weight:500;letter-spacing:.2px;box-shadow:0 2px 12px rgba(80,70,50,.12);'
+			+ 'cursor:pointer;transition:box-shadow .15s,background .15s;}'
+			+ '#' + BTN_ID + ':hover{background:#fff;box-shadow:0 4px 16px rgba(80,70,50,.16);}'
+			+ '#' + BTN_ID + ' .cw-fab-beta{display:block;font-size:10px;color:#a89f8f;margin-top:2px;font-family:Rubik,Arial,sans-serif;}'
 			+ '#' + MODAL_ID + '-backdrop{position:fixed;inset:0;background:rgba(40,35,25,.45);'
 			+ 'z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;}'
 			+ '#' + MODAL_ID + '{background:#faf7f2;border-radius:16px;max-width:560px;width:100%;'
@@ -209,7 +212,7 @@
 		var btn = document.createElement('button');
 		btn.id = BTN_ID;
 		btn.type = 'button';
-		btn.textContent = ADMIN_ONLY_BETA ? '🚗 עזרה בקניית רכב (בטא - רק אתה רואה)' : '🚗 עזרה בקניית רכב';
+		btn.innerHTML = 'עזרה בקניית רכב' + (ADMIN_ONLY_BETA ? '<span class="cw-fab-beta">בטא - מוצג רק למנהלים</span>' : '');
 		btn.addEventListener('click', openWizard);
 		document.body.appendChild(btn);
 	}
