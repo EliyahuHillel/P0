@@ -13,13 +13,12 @@
 (function () {
 	'use strict';
 
-	// TODO (מנהל): אחרי שיוצרים את קטגוריית "בקשות רכב", למלא כאן את המספר (cid) שלה.
-	// אפשר לראות אותו בכתובת של הקטגוריה, למשל .../category/12/... -> 12
-	var CATEGORY_ID = null;
+	// קטגוריית "עסקאות רכב" - https://rechavimzelaze.ovh/category/82/עסקאות-רכב
+	var CATEGORY_ID = 82;
 
-	if (CATEGORY_ID === null) {
-		return; // הכלי כבוי עד שממלאים את מספר הקטגוריה למעלה
-	}
+	// מצב בטא: כל עוד true, הכפתור מוצג רק למנהלים (app.user.isAdmin) - אף משתמש
+	// רגיל לא רואה אותו. להחליף ל-false כדי לפתוח לכולם, אחרי אישור המנהל הראשי.
+	var ADMIN_ONLY_BETA = true;
 
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
@@ -196,8 +195,11 @@
 		var onTargetCategory = window.ajaxify && window.ajaxify.data &&
 			String(window.ajaxify.data.cid) === String(CATEGORY_ID);
 
+		var isAdmin = typeof app !== 'undefined' && app.user && app.user.isAdmin;
+		var visibleToMe = !ADMIN_ONLY_BETA || isAdmin;
+
 		var existing = document.getElementById(BTN_ID);
-		if (!onTargetCategory) {
+		if (!onTargetCategory || !visibleToMe) {
 			if (existing) existing.remove();
 			return;
 		}
@@ -207,7 +209,7 @@
 		var btn = document.createElement('button');
 		btn.id = BTN_ID;
 		btn.type = 'button';
-		btn.textContent = '🚗 עזרה בקניית רכב';
+		btn.textContent = ADMIN_ONLY_BETA ? '🚗 עזרה בקניית רכב (בטא - רק אתה רואה)' : '🚗 עזרה בקניית רכב';
 		btn.addEventListener('click', openWizard);
 		document.body.appendChild(btn);
 	}
