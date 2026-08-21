@@ -295,18 +295,22 @@ document.getElementById('carForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   statusEl.className = 'status';
 
-  if(CATEGORY_ID === null){
-    showStatus('warn', 'הטופס עדיין לא מחובר לקטגוריה בפורום - זמנית אי אפשר לפרסם דרכו. נא לפנות למנהל.');
-    return;
-  }
-
   submitBtn.disabled = true;
   submitBtn.textContent = 'שולח...';
 
   try{
     const config = await getCsrfAndLogin();
+    // Reaching this line at all (without a thrown network/CORS error) confirms
+    // the forum's CORS settings are correctly allowing this origin.
     if(!config.loggedIn){
       showStatus('warn', 'צריך להיות מחוברים לפורום באותו דפדפן כדי לפרסם. <a href="' + FORUM_BASE + '/login" target="_blank">להתחברות</a>, ואז לנסות שוב.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'פרסם בפורום';
+      return;
+    }
+
+    if(CATEGORY_ID === null){
+      showStatus('ok', 'החיבור לפורום תקין ואתם מחוברים! רק חסר לחבר את הטופס לקטגוריה (מנהל: להגדיר CATEGORY_ID בקוד) כדי לאפשר פרסום בפועל.');
       submitBtn.disabled = false;
       submitBtn.textContent = 'פרסם בפורום';
       return;
