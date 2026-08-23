@@ -88,6 +88,11 @@
 			+ '#' + MODAL_ID + ' .cw-pill{font-size:12.5px;padding:6px 12px;border-radius:999px;'
 			+ 'border:1px solid #e9e3d8;background:#fff;color:#867d6e;cursor:pointer;user-select:none;}'
 			+ '#' + MODAL_ID + ' .cw-pill.active{background:#4f6b57;color:#fff;border-color:transparent;font-weight:500;}'
+			// כל קטגורייה מודגשת בגוון אחר כשנבחרת, כדי שיהיה קל להבחין בין הקבוצות במבט חטוף.
+			+ '#' + MODAL_ID + ' .cw-pills[data-group="passengers"] .cw-pill.active{background:#8a6d3b;}'
+			+ '#' + MODAL_ID + ' .cw-pills[data-group="gear"] .cw-pill.active{background:#45636b;}'
+			+ '#' + MODAL_ID + ' .cw-pills[data-group="fuel"] .cw-pill.active{background:#7a5548;}'
+			+ '#' + MODAL_ID + ' .cw-pills[data-group="hand"] .cw-pill.active{background:#6b5b7a;}'
 			+ '#' + MODAL_ID + ' .cw-range-row{display:flex;align-items:center;gap:10px;}'
 			+ '#' + MODAL_ID + ' .cw-range-val{min-width:20px;text-align:center;font-weight:600;color:#4f6b57;}'
 			+ '#' + MODAL_ID + ' .cw-actions{display:flex;gap:10px;margin-top:20px;}'
@@ -121,8 +126,8 @@
 			+ '<h3>עזרה חכמה בקניית רכב</h3>'
 			+ '<p class="cw-sub">מלאו פעם אחת - נחסוך את כל שאלות ההבהרה בתגובות. הפוסט יפורסם בקטגוריית "עסקאות רכב".</p>'
 			+ '<div class="cw-field"><label>תקציב (עד כמה, בש״ח)</label><input type="number" id="cw_budget" placeholder="למשל 60000"></div>'
-			+ '<div class="cw-field"><label>ייעוד עיקרי</label>' + pillGroup('purpose', ['עירוני יומיומי', 'משפחתי', 'בין-עירוני', 'שטח']) + '</div>'
-			+ '<div class="cw-field"><label>מספר נוסעים</label><select id="cw_passengers"><option value="">בחרו...</option><option>1-2</option><option>3-4</option><option>5</option><option>6-7+</option></select></div>'
+			+ '<div class="cw-field"><label>ייעוד עיקרי (אפשר כמה)</label>' + pillGroup('purpose', ['עירוני יומיומי', 'משפחתי', 'בין-עירוני', 'שטח']) + '</div>'
+			+ '<div class="cw-field"><label>מספר נוסעים</label>' + pillGroup('passengers', ['1-2', '3-4', '5', '6-7+']) + '</div>'
 			+ '<div class="cw-field"><label>נסועה שנתית (ק"מ)</label><select id="cw_mileage"><option value="">בחרו...</option><option>עד 10,000</option><option>10,000-20,000</option><option>20,000-30,000</option><option>מעל 30,000</option></select></div>'
 			+ rangeField('econ', 'חשיבות חיסכון בדלק')
 			+ rangeField('power', 'חשיבות כוח/עוצמה')
@@ -131,7 +136,7 @@
 			+ rangeField('trunk', 'חשיבות גודל מטען')
 			+ '<div class="cw-field"><label>גיר</label>' + pillGroup('gear', ['אוטומט', 'ידני', 'לא משנה']) + '</div>'
 			+ '<div class="cw-field"><label>סוג הנעה (אפשר כמה)</label>' + pillGroup('fuel', ['בנזין', 'דיזל', 'גז', 'היברידי', 'חשמלי', 'לא משנה']) + '</div>'
-			+ '<div class="cw-field"><label>יד</label>' + pillGroup('hand', ['ראשונה בלבד', 'יד 2-3 בסדר', 'לא משנה']) + '</div>'
+			+ '<div class="cw-field"><label>יד</label>' + pillGroup('hand', ['יד ראשונה בלבד', 'עד יד שלישית', 'עד יד חמישית', 'לא משנה']) + '</div>'
 			+ '<div class="cw-field"><label>אזור מגורים</label><input type="text" id="cw_region" placeholder="מרכז, שרון, דרום..."></div>'
 			+ '<div class="cw-field"><label>הערות נוספות</label><textarea id="cw_notes" rows="2"></textarea></div>'
 			+ '<div class="cw-actions">'
@@ -140,9 +145,11 @@
 			+ '</div>';
 	}
 
+	var MULTI_SELECT_GROUPS = ['purpose', 'fuel'];
+
 	function wirePills(root) {
 		root.querySelectorAll('[data-group]').forEach(function (group) {
-			var multi = group.getAttribute('data-group') === 'fuel';
+			var multi = MULTI_SELECT_GROUPS.indexOf(group.getAttribute('data-group')) !== -1;
 			group.querySelectorAll('.cw-pill').forEach(function (pill) {
 				pill.addEventListener('click', function () {
 					if (multi) {
@@ -190,8 +197,8 @@
 	function applyPrefill(modal, data) {
 		if (!data) return;
 		modal.querySelector('#cw_budget').value = data.budgetRaw || '';
-		setActivePill(modal, 'purpose', data.purpose ? [data.purpose] : []);
-		modal.querySelector('#cw_passengers').value = data.passengers || '';
+		setActivePill(modal, 'purpose', data.purposeArr || []);
+		setActivePill(modal, 'passengers', data.passengers ? [data.passengers] : []);
 		modal.querySelector('#cw_mileage').value = data.mileage || '';
 		setRangeValue(modal, 'econ', data.econ);
 		setRangeValue(modal, 'power', data.power);
@@ -256,9 +263,9 @@
 		modal.querySelector('#cw_continue').addEventListener('click', function () {
 			var budgetRaw = modal.querySelector('#cw_budget').value;
 			var budget = formatBudget(budgetRaw) || 'לא צוין';
-			var purposeVal = getGroupValue(modal, 'purpose')[0] || '';
-			var purpose = purposeVal || 'לא צוין';
-			var passengersVal = modal.querySelector('#cw_passengers').value;
+			var purposeArr = getGroupValue(modal, 'purpose');
+			var purpose = purposeArr.join(', ') || 'לא צוין';
+			var passengersVal = getGroupValue(modal, 'passengers')[0] || '';
 			var passengers = passengersVal || 'לא צוין';
 			var mileageVal = modal.querySelector('#cw_mileage').value;
 			var mileage = mileageVal || 'לא צוין';
@@ -282,7 +289,7 @@
 			// מפוסט שכבר פורסם.
 			var data = {
 				budgetRaw: budgetRaw,
-				purpose: purposeVal,
+				purposeArr: purposeArr,
 				passengers: passengersVal,
 				mileage: mileageVal,
 				econ: econ,
