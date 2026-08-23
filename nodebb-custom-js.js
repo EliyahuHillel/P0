@@ -147,6 +147,22 @@
 			+ '</div>';
 	}
 
+	function sectionHeader(text) {
+		return '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#a89f8f;font-weight:600;padding:14px 20px 4px;">' + text + '</div>';
+	}
+
+	function dotsRow(label, value) {
+		var n = parseInt(value, 10) || 0;
+		var dots = '';
+		for (var i = 1; i <= 5; i++) {
+			dots += '<span style="color:' + (i <= n ? '#4f6b57' : '#e9e3d8') + ';font-size:15px;letter-spacing:1px;">●</span>';
+		}
+		return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f1ede6;">'
+			+ '<span style="color:#867d6e;font-size:13.5px;white-space:nowrap;">' + label + '</span>'
+			+ '<span>' + dots + '</span>'
+			+ '</div>';
+	}
+
 	function openWizard() {
 		injectStyles();
 		closeModal();
@@ -185,22 +201,27 @@
 				+ '<div style="background:#faf7f2;padding:16px 20px;border-bottom:1px solid #e9e3d8;">'
 				+ '<div style="font-family:\'Frank Ruhl Libre\',serif;font-size:19px;font-weight:700;color:#332f28;">מחפש/ת רכב - סיכום דרישות</div>'
 				+ '</div>'
-				+ '<div style="padding:4px 20px;">'
+				+ '<div style="padding:0 20px;">'
+				+ sectionHeader('פרטי בסיס')
 				+ summaryRow('תקציב', 'עד ' + budget + ' ש"ח')
 				+ summaryRow('ייעוד עיקרי', purpose)
 				+ summaryRow('מספר נוסעים', passengers)
 				+ summaryRow('נסועה שנתית', mileage + ' ק"מ')
-				+ summaryRow('חשיבות חיסכון בדלק', econ + '/5')
-				+ summaryRow('חשיבות כוח/עוצמה', power + '/5')
-				+ summaryRow('חשיבות אמינות', reliab + '/5')
-				+ summaryRow('חשיבות נוחות', comfort + '/5')
-				+ summaryRow('חשיבות גודל מטען', trunk + '/5')
+
+				+ sectionHeader('מה הכי חשוב לי')
+				+ dotsRow('חיסכון בדלק', econ)
+				+ dotsRow('כוח/עוצמה', power)
+				+ dotsRow('אמינות', reliab)
+				+ dotsRow('נוחות', comfort)
+				+ dotsRow('גודל תא מטען', trunk)
+
+				+ sectionHeader('העדפות נוספות')
 				+ summaryRow('גיר', gear)
 				+ summaryRow('סוג הנעה', fuel)
 				+ summaryRow('יד', hand)
 				+ summaryRow('אזור', region)
 				+ '</div>'
-				+ (notes ? '<div style="padding:12px 20px;font-size:13.5px;color:#332f28;border-top:1px solid #e9e3d8;"><b>הערות נוספות:</b> ' + notes + '</div>' : '')
+				+ (notes ? '<div style="padding:12px 20px;font-size:13.5px;color:#332f28;border-top:1px solid #e9e3d8;margin-top:8px;"><b>הערות נוספות:</b> ' + notes + '</div>' : '<div style="height:8px;"></div>')
 				+ '<div style="padding:10px 20px;background:#faf7f2;font-size:11px;color:#a89f8f;border-top:1px solid #e9e3d8;">פורסם באמצעות טופס "עזרה חכמה בקניית רכב"</div>'
 				+ '</div>';
 
@@ -217,15 +238,32 @@
 	}
 
 	var TAB_ID = 'car-wizard-tab-el';
+	var TOOLBAR_ATTACHED_ATTR = 'data-car-wizard-attached';
 
-	// מצמידים את הכפתור ל-document.body (לא לחלון הכתיבה עצמו) כדי שלא
-	// ייתפס/ייחתך אם לחלון הכתיבה יש CSS transform/overflow פנימיים -
-	// אבל מציגים/מסתירים אותו לפי קיום .composer בדף, שנבדק דרך MutationObserver
-	// (אותה שיטה שכבר עובדת אצלך בקוד הקיים - הבלוקים המוערים של "פרופיל" ו-"browsing users").
-	function syncTab() {
-		var composerOpen = document.querySelector('.composer') !== null;
-		var show = composerOpen && visibleToMe();
+	// NodeBB לא תמיד מסיר את חלון הכתיבה מה-DOM כשסוגרים אותו (לפעמים רק
+	// מסתיר/ממזער) - אז בודקים גם נראות בפועל, לא רק קיום באלמנטים.
+	function isVisible(el) {
+		return !!el && el.offsetParent !== null;
+	}
+
+	function visibleComposers() {
+		return Array.prototype.filter.call(document.querySelectorAll('.composer'), isVisible);
+	}
+
+	function buildToolbarIcon() {
+		var li = document.createElement('li');
+		li.innerHTML = '<a href="#" title="עזרה בקניית רכב" style="color:#4f6b57;">רכב</a>';
+		li.querySelector('a').addEventListener('click', function (e) {
+			e.preventDefault();
+			openWizard();
+		});
+		return li;
+	}
+
+	// מציג/מסתיר את התגית הצדדית (fallback, רק אם לא נמצאה שורת הכלים בחלון הכתיבה)
+	function syncFallbackTab(anyVisibleComposerWithoutToolbar) {
 		var existing = document.getElementById(TAB_ID);
+		var show = anyVisibleComposerWithoutToolbar && visibleToMe();
 
 		if (!show) {
 			if (existing) existing.remove();
@@ -242,10 +280,33 @@
 		document.body.appendChild(tab);
 	}
 
+	function syncTab() {
+		if (!visibleToMe()) {
+			syncFallbackTab(false);
+			return;
+		}
+
+		var composers = visibleComposers();
+		var missingToolbar = false;
+
+		composers.forEach(function (composerEl) {
+			var bar = composerEl.querySelector('.formatting-bar');
+			if (!bar) {
+				missingToolbar = true;
+				return;
+			}
+			if (bar.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
+			bar.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
+			bar.appendChild(buildToolbarIcon());
+		});
+
+		syncFallbackTab(composers.length > 0 && missingToolbar);
+	}
+
 	var observer = new MutationObserver(function () {
 		syncTab();
 	});
-	observer.observe(document.body, { childList: true, subtree: true });
+	observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
 
 	// בדיקה ראשונית, ליתר ביטחון (למקרה שחלון כתיבה כבר פתוח בטעינת הדף)
 	syncTab();
