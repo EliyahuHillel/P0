@@ -261,10 +261,11 @@
 	}
 
 	// שדה התגיות עצמו הוא <input class="ui-autocomplete-input" placeholder="הכנס תגיות...">
-	// (jQuery UI autocomplete, לא ספריית tagsinput) - מאתרים אותו ישירות לפי
-	// המחלקה + placeholder, כדי לא לתפוס בטעות שדה autocomplete אחר (כמו בחירת קטגוריה).
-	function findTagsInput(composerEl) {
-		var candidates = composerEl.querySelectorAll('input.ui-autocomplete-input');
+	// (jQuery UI autocomplete, לא ספריית tagsinput). מחפשים בכל הדף (לא רק
+	// בתוך .composer) כי ייתכן שהשדה לא מקונן בפועל בתוך אלמנט חלון הכתיבה -
+	// זה עדיין בטוח כי השדה הזה קיים רק כשחלון כתיבה פתוח בפועל.
+	function findTagsInput() {
+		var candidates = document.querySelectorAll('input.ui-autocomplete-input');
 		for (var i = 0; i < candidates.length; i++) {
 			var ph = candidates[i].getAttribute('placeholder') || '';
 			if (ph.indexOf('תגי') !== -1) return candidates[i];
@@ -299,20 +300,21 @@
 		}
 
 		var composers = visibleComposers();
-		var missingTagsRow = false;
+		if (composers.length === 0) {
+			syncFallbackTab(false);
+			return;
+		}
 
-		composers.forEach(function (composerEl) {
-			var input = findTagsInput(composerEl);
-			if (!input) {
-				missingTagsRow = true;
-				return;
+		var input = findTagsInput();
+		if (input && isVisible(input)) {
+			if (!input.getAttribute(TOOLBAR_ATTACHED_ATTR)) {
+				input.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
+				input.insertAdjacentElement('afterend', buildInlineButton());
 			}
-			if (input.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
-			input.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
-			input.insertAdjacentElement('afterend', buildInlineButton());
-		});
-
-		syncFallbackTab(composers.length > 0 && missingTagsRow);
+			syncFallbackTab(false);
+		} else {
+			syncFallbackTab(true);
+		}
 	}
 
 	var observer = new MutationObserver(function () {
