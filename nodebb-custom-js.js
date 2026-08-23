@@ -3,16 +3,14 @@
  * (לוודא שה-checkbox "Enable Custom JS" מסומן, ואז לשמור)
  *
  * מה זה עושה:
- * 1. בדף רשימת הנושאים של קטגוריית "עסקאות רכב" (ורק שם - לא בתוך שרשורים
- *    בודדים) מופיע פס עדין שמזכיר שיש טופס מהיר.
- * 2. בכל מקרה שבו לוחצים על כפתור "נושא חדש" (#new_topic - מזהה קבוע בליבת
- *    NodeBB) בזמן שנמצאים בקטגוריה הזו, הלחיצה נתפסת *לפני* שחלון הכתיבה
- *    הרגיל נפתח, ובמקום זה נפתח הטופס שלנו.
- * 3. בסיום מילוי הטופס נבנה כותרת + "כרטיסיית סיכום" מעוצבת (HTML/CSS מוטבע,
- *    לא Markdown גולמי), ונקרא לפונקציה app.newTopic() המובנית של NodeBB -
- *    זו בדיוק הפונקציה שהכפתור הרגיל קורא לה. NodeBB פותח את חלון הכתיבה
- *    הרגיל, כבר מלא, והמשתמש לוחץ על כפתור הפרסום הרגיל. אין קריאת API
- *    עצמאית, אין CORS, אין טיפול ב-cookie/CSRF - הכל דרך NodeBB עצמו.
+ * בכל פעם שנפתח חלון כתיבת פוסט כלשהו (נושא חדש/תגובה, בכל קטגוריה) מופיע
+ * כפתור קטן וצדדי - "עזרה בקניית רכב" - שלא מכסה שום דבר. הוא צמוד לחלון
+ * הכתיבה עצמו, ונעלם אוטומטית כשסוגרים אותו (כי הוא חלק מה-DOM של החלון).
+ * לחיצה עליו פותחת את הטופס שלנו; בסיום נבנה כותרת + "כרטיסיית סיכום"
+ * מעוצבת (HTML/CSS מוטבע), ונקרא ל-app.newTopic() המובנית של NodeBB - זו
+ * בדיוק הפונקציה שכפתור "פוסט חדש" הרגיל קורא לה, כך שנפתח חלון כתיבה חדש
+ * וממולא מראש בקטגוריית "עסקאות רכב". אין קריאת API עצמאית, אין CORS, אין
+ * טיפול ב-cookie/CSRF - הכל דרך NodeBB עצמו.
  */
 (function () {
 	'use strict';
@@ -20,13 +18,13 @@
 	// קטגוריית "עסקאות רכב" - https://rechavimzelaze.ovh/category/82/עסקאות-רכב
 	var CATEGORY_ID = 82;
 
-	// מצב בטא: כל עוד true, הכל מוצג רק למנהלים (app.user.isAdmin) - אף משתמש
-	// רגיל לא רואה שום דבר. להחליף ל-false כדי לפתוח לכולם, אחרי אישור המנהל הראשי.
+	// מצב בטא: כל עוד true, הכפתור מוצג רק למנהלים (app.user.isAdmin) - אף
+	// משתמש רגיל לא רואה שום דבר. להחליף ל-false אחרי אישור המנהל הראשי.
 	var ADMIN_ONLY_BETA = true;
 
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
-	var BANNER_ID = 'car-wizard-banner';
+	var TAB_CLASS = 'car-wizard-tab';
 
 	function isAdmin() {
 		return typeof app !== 'undefined' && app.user && app.user.isAdmin;
@@ -36,23 +34,16 @@
 		return !ADMIN_ONLY_BETA || isAdmin();
 	}
 
-	function onCategoryIndexPage() {
-		var d = window.ajaxify && window.ajaxify.data;
-		return !!(d && d.template && d.template.category && String(d.cid) === String(CATEGORY_ID));
-	}
-
 	function injectStyles() {
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
-			+ '#' + BANNER_ID + '{background:#faf7f2;border:1px solid #e9e3d8;border-radius:12px;'
-			+ 'padding:14px 18px;margin:0 0 16px;display:flex;align-items:center;justify-content:space-between;'
-			+ 'gap:12px;font-family:Rubik,Arial,sans-serif;direction:rtl;}'
-			+ '#' + BANNER_ID + ' .cw-banner-text{font-size:13.5px;color:#332f28;}'
-			+ '#' + BANNER_ID + ' .cw-banner-text b{font-family:"Frank Ruhl Libre",serif;font-weight:700;}'
-			+ '#' + BANNER_ID + ' .cw-banner-sub{display:block;font-size:11px;color:#a89f8f;margin-top:2px;}'
-			+ '#' + BANNER_ID + ' button{flex-shrink:0;background:#4f6b57;color:#fff;border:none;'
-			+ 'border-radius:8px;padding:9px 16px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;}'
-			+ '#' + BANNER_ID + ' button:hover{opacity:.92;}'
+			+ '.' + TAB_CLASS + '{position:fixed;top:50%;transform:translateY(-50%);left:0;z-index:1085;'
+			+ 'background:#faf7f2;color:#4f6b57;border:1px solid #e9e3d8;border-left:none;'
+			+ 'border-radius:0 10px 10px 0;padding:10px 14px 10px 10px;font-family:"Frank Ruhl Libre",Rubik,Arial,serif;'
+			+ 'font-size:12.5px;font-weight:500;letter-spacing:.2px;box-shadow:2px 0 10px rgba(80,70,50,.1);'
+			+ 'cursor:pointer;writing-mode:vertical-rl;text-orientation:mixed;transition:box-shadow .15s,background .15s;}'
+			+ '.' + TAB_CLASS + ':hover{background:#fff;box-shadow:3px 0 14px rgba(80,70,50,.16);}'
+			+ '.' + TAB_CLASS + ' .cw-tab-beta{display:block;font-size:9px;color:#a89f8f;margin-top:4px;font-family:Rubik,Arial,sans-serif;writing-mode:vertical-rl;}'
 			+ '#' + MODAL_ID + '-backdrop{position:fixed;inset:0;background:rgba(40,35,25,.45);'
 			+ 'z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;}'
 			+ '#' + MODAL_ID + '{background:#faf7f2;border-radius:16px;max-width:560px;width:100%;'
@@ -100,7 +91,7 @@
 	function buildModalHTML() {
 		return ''
 			+ '<h3>עזרה חכמה בקניית רכב</h3>'
-			+ '<p class="cw-sub">מלאו פעם אחת - נחסוך את כל שאלות ההבהרה בתגובות.</p>'
+			+ '<p class="cw-sub">מלאו פעם אחת - נחסוך את כל שאלות ההבהרה בתגובות. הפוסט יפורסם בקטגוריית "עסקאות רכב".</p>'
 			+ '<div class="cw-field"><label>תקציב (עד כמה, בש"ח)</label><input type="number" id="cw_budget" placeholder="למשל 60000"></div>'
 			+ '<div class="cw-field"><label>ייעוד עיקרי</label>' + pillGroup('purpose', ['עירוני יומיומי', 'משפחתי', 'בין-עירוני', 'שטח']) + '</div>'
 			+ '<div class="cw-field"><label>מספר נוסעים</label><select id="cw_passengers"><option value="">בחרו...</option><option>1-2</option><option>3-4</option><option>5</option><option>6-7+</option></select></div>'
@@ -225,41 +216,18 @@
 		});
 	}
 
-	function ensureBanner() {
-		var existing = document.getElementById(BANNER_ID);
-		if (!onCategoryIndexPage() || !visibleToMe()) {
-			if (existing) existing.remove();
-			return;
-		}
-		if (existing) return;
+	// כשחלון כתיבה כלשהו נפתח (נושא חדש/תגובה, בכל קטגוריה) - מוסיפים כפתור
+	// צדדי צמוד לחלון עצמו. מכיוון שהוא ילד ב-DOM של החלון, הוא נעלם לבד כשסוגרים אותו.
+	$(window).on('action:composer.enhance', function (event, data) {
+		if (!visibleToMe()) return;
+		if (!data || !data.container || !data.container.length) return;
 
 		injectStyles();
-		var container = document.querySelector('[component="category"]') || document.getElementById('content') || document.body;
-		var banner = document.createElement('div');
-		banner.id = BANNER_ID;
-		banner.innerHTML = ''
-			+ '<div class="cw-banner-text"><b>לפני שפותחים בקשת עזרה בקניית רכב</b>'
-			+ (ADMIN_ONLY_BETA ? '<span class="cw-banner-sub">בטא - מוצג רק למנהלים</span>' : '<span class="cw-banner-sub">טופס קצר שחוסך את כל שאלות ההבהרה</span>')
-			+ '</div>'
-			+ '<button type="button" id="cw_open_from_banner">למילוי הטופס</button>';
-		container.insertBefore(banner, container.firstChild);
-		banner.querySelector('#cw_open_from_banner').addEventListener('click', openWizard);
-	}
 
-	// יירוט לחיצה על "נושא חדש" (#new_topic - מזהה קבוע בליבת NodeBB) - שלב
-	// תפיסה (capture) כדי לפעול *לפני* הליבה של NodeBB, ורק כשנמצאים בקטגוריה שלנו.
-	document.addEventListener('click', function (e) {
-		if (!visibleToMe()) return;
-		var target = e.target && e.target.closest && e.target.closest('#new_topic');
-		if (!target) return;
-		if (!onCategoryIndexPage()) return; // לא הקטגוריה שלנו - נותנים להתנהגות הרגילה לקרות
-
-		e.preventDefault();
-		e.stopPropagation();
-		e.stopImmediatePropagation();
-		openWizard();
-	}, true);
-
-	$(window).on('action:ajaxify.end', ensureBanner);
-	$(document).ready(ensureBanner);
+		var tab = document.createElement('div');
+		tab.className = TAB_CLASS;
+		tab.innerHTML = 'עזרה בקניית רכב' + (ADMIN_ONLY_BETA ? '<span class="cw-tab-beta">בטא</span>' : '');
+		tab.addEventListener('click', openWizard);
+		data.container.get(0).appendChild(tab);
+	});
 })();
