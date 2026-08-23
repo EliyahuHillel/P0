@@ -11,6 +11,11 @@
  * בדיוק הפונקציה שכפתור "פוסט חדש" הרגיל קורא לה, כך שנפתח חלון כתיבה חדש
  * וממולא מראש בקטגוריית "עסקאות רכב". אין קריאת API עצמאית, אין CORS, אין
  * טיפול ב-cookie/CSRF - הכל דרך NodeBB עצמו.
+ *
+ * אחרי שהחלון נפתח ממולא, הכפתור באותה שורת תגיות משנה את עצמו אוטומטית
+ * ל"עריכת פרטי החיפוש": לחיצה עליו פותחת שוב את אותו טופס, ממולא בדיוק
+ * כפי שמולא בפעם הקודמת, כדי שאם נזכרים במשהו לפני הפרסום אפשר לשנות/
+ * להוסיף דרך הטופס עצמו - בלי לגעת בכלל בקוד ה-HTML הגולמי שנוצר.
  */
 (function () {
 	'use strict';
@@ -24,6 +29,16 @@
 
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
+
+	// תג HTML-comment בתחילת התוכן שנוצר - בלתי נראה בפוסט עצמו, אבל מאפשר
+	// לזהות אם חלון כתיבה נתון כבר מכיל תוכן שהאשף יצר (כדי להציע "עריכת
+	// פרטים" שפותחת מחדש את האשף עם אותם נתונים, במקום לתת למשתמש לגעת
+	// ידנית בקוד ה-HTML ולסכן שבירה שלו).
+	var WIZARD_MARKER = '<!--car-wizard-v1-->';
+
+	// נתוני המילוי האחרונים באשף (כדי לאפשר "עריכת פרטים" שפותחת את האשף
+	// מחדש כשהוא כבר ממולא, בלי לגעת בכלל ב-HTML הגולמי).
+	var lastWizardData = null;
 
 	function isAdmin() {
 		return typeof app !== 'undefined' && app.user && app.user.isAdmin;
@@ -131,6 +146,44 @@
 		if (backdrop) backdrop.remove();
 	}
 
+	function setActivePill(root, groupName, values) {
+		var group = root.querySelector('[data-group="' + groupName + '"]');
+		if (!group) return;
+		var arr = values || [];
+		group.querySelectorAll('.cw-pill').forEach(function (p) {
+			var match = arr.indexOf(p.getAttribute('data-value')) !== -1;
+			p.classList.toggle('active', match);
+		});
+	}
+
+	function setRangeValue(root, name, value) {
+		if (!value) return;
+		var input = root.querySelector('#cw_' + name);
+		var span = root.querySelector('#cw_v_' + name);
+		if (input) input.value = value;
+		if (span) span.textContent = value;
+	}
+
+	// ממלא מחדש את שדות האשף לפי נתונים ששמורים מריצה קודמת - זה מה שמאפשר
+	// כפתור "עריכת פרטים" בלי לגעת בכלל בתוכן ה-HTML שכבר נוצר.
+	function applyPrefill(modal, data) {
+		if (!data) return;
+		modal.querySelector('#cw_budget').value = data.budgetRaw || '';
+		setActivePill(modal, 'purpose', data.purpose ? [data.purpose] : []);
+		modal.querySelector('#cw_passengers').value = data.passengers || '';
+		modal.querySelector('#cw_mileage').value = data.mileage || '';
+		setRangeValue(modal, 'econ', data.econ);
+		setRangeValue(modal, 'power', data.power);
+		setRangeValue(modal, 'reliab', data.reliab);
+		setRangeValue(modal, 'comfort', data.comfort);
+		setRangeValue(modal, 'trunk', data.trunk);
+		setActivePill(modal, 'gear', data.gear ? [data.gear] : []);
+		setActivePill(modal, 'fuel', data.fuelArr || []);
+		setActivePill(modal, 'hand', data.hand ? [data.hand] : []);
+		modal.querySelector('#cw_region').value = data.region || '';
+		modal.querySelector('#cw_notes').value = data.notes || '';
+	}
+
 	// שורה בכרטיסיית הסיכום - HTML+CSS מוטבע, לא Markdown
 	function summaryRow(label, value) {
 		return '<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #f1ede6;">'
@@ -161,7 +214,7 @@
 			+ '</div>';
 	}
 
-	function openWizard() {
+	function openWizard(prefillData) {
 		injectStyles();
 		closeModal();
 		var backdrop = document.createElement('div');
@@ -172,6 +225,7 @@
 		backdrop.appendChild(modal);
 		document.body.appendChild(backdrop);
 		wirePills(modal);
+		applyPrefill(modal, prefillData);
 
 		backdrop.addEventListener('click', function (e) {
 			if (e.target === backdrop) closeModal();
@@ -179,22 +233,49 @@
 		modal.querySelector('#cw_cancel').addEventListener('click', closeModal);
 
 		modal.querySelector('#cw_continue').addEventListener('click', function () {
-			var budget = formatBudget(modal.querySelector('#cw_budget').value) || 'לא צוין';
-			var purpose = getGroupValue(modal, 'purpose')[0] || 'לא צוין';
-			var passengers = modal.querySelector('#cw_passengers').value || 'לא צוין';
-			var mileage = modal.querySelector('#cw_mileage').value || 'לא צוין';
+			var budgetRaw = modal.querySelector('#cw_budget').value;
+			var budget = formatBudget(budgetRaw) || 'לא צוין';
+			var purposeVal = getGroupValue(modal, 'purpose')[0] || '';
+			var purpose = purposeVal || 'לא צוין';
+			var passengersVal = modal.querySelector('#cw_passengers').value;
+			var passengers = passengersVal || 'לא צוין';
+			var mileageVal = modal.querySelector('#cw_mileage').value;
+			var mileage = mileageVal || 'לא צוין';
 			var econ = modal.querySelector('#cw_econ').value;
 			var power = modal.querySelector('#cw_power').value;
 			var reliab = modal.querySelector('#cw_reliab').value;
 			var comfort = modal.querySelector('#cw_comfort').value;
 			var trunk = modal.querySelector('#cw_trunk').value;
-			var gear = getGroupValue(modal, 'gear')[0] || 'לא משנה';
-			var fuel = getGroupValue(modal, 'fuel').join(', ') || 'לא צוין';
-			var hand = getGroupValue(modal, 'hand')[0] || 'לא משנה';
-			var region = modal.querySelector('#cw_region').value || 'לא צוין';
+			var gearVal = getGroupValue(modal, 'gear')[0] || '';
+			var gear = gearVal || 'לא משנה';
+			var fuelArr = getGroupValue(modal, 'fuel');
+			var fuel = fuelArr.join(', ') || 'לא צוין';
+			var handVal = getGroupValue(modal, 'hand')[0] || '';
+			var hand = handVal || 'לא משנה';
+			var regionVal = modal.querySelector('#cw_region').value;
+			var region = regionVal || 'לא צוין';
 			var notes = modal.querySelector('#cw_notes').value.trim();
 
-			var content = ''
+			// שומרים את הנתונים הגולמיים (לא המעוצבים) כדי שכפתור "עריכת
+			// פרטים" יוכל לפתוח את האשף מחדש ממולא בדיוק כפי שהוזן.
+			lastWizardData = {
+				budgetRaw: budgetRaw,
+				purpose: purposeVal,
+				passengers: passengersVal,
+				mileage: mileageVal,
+				econ: econ,
+				power: power,
+				reliab: reliab,
+				comfort: comfort,
+				trunk: trunk,
+				gear: gearVal,
+				fuelArr: fuelArr,
+				hand: handVal,
+				region: regionVal,
+				notes: notes
+			};
+
+			var content = WIZARD_MARKER
 				+ '<div style="border:1px solid #e9e3d8;border-radius:14px;overflow:hidden;font-family:Rubik,Arial,sans-serif;direction:rtl;max-width:480px;">'
 				+ '<div style="background:#faf7f2;padding:16px 20px;border-bottom:1px solid #e9e3d8;">'
 				+ '<div style="font-family:\'Frank Ruhl Libre\',serif;font-size:19px;font-weight:700;color:#332f28;">מחפש רכב - סיכום דרישות</div>'
@@ -265,17 +346,30 @@
 		}
 	}
 
-	function buildInlineButton() {
+	// בודקים אם חלון הכתיבה הזה כבר מכיל תוכן שהאשף יצר (לפי תג ה-HTML-comment
+	// שהוטבע בתחילת התוכן) - כדי להציע "עריכת פרטים" (פותח את האשף מחדש
+	// ממולא) במקום "עזרה בקניית רכב", וכך המשתמש אף פעם לא צריך לגעת ידנית
+	// בקוד ה-HTML הגולמי אם נזכר במשהו שרוצה להוסיף/לשנות.
+	function composerHasWizardContent(composerEl) {
+		if (!composerEl) return false;
+		var ta = composerEl.querySelector('textarea');
+		return !!(ta && ta.value && ta.value.indexOf(WIZARD_MARKER) !== -1);
+	}
+
+	function buildInlineButton(isEdit) {
 		var span = document.createElement('span');
 		span.style.marginInlineStart = '10px';
+		var label = isEdit ? 'עריכת פרטי החיפוש' : 'עזרה בקניית רכב';
 		span.innerHTML = '<a href="#" style="display:inline-block;padding:4px 12px;border:1px solid #e9e3d8;'
 			+ 'border-radius:999px;background:#faf7f2;color:#4f6b57;font-size:12px;font-weight:500;'
-			+ 'white-space:nowrap;text-decoration:none;">עזרה בקניית רכב</a>';
+			+ 'white-space:nowrap;text-decoration:none;">' + label + '</a>';
 		span.querySelector('a').addEventListener('click', function (e) {
 			e.preventDefault();
 			var btn = e.currentTarget;
 			discardComposerOf(btn);
-			setTimeout(openWizard, 300);
+			setTimeout(function () {
+				openWizard(isEdit ? lastWizardData : null);
+			}, 300);
 		});
 		return span;
 	}
@@ -297,7 +391,8 @@
 	// אם השורה לא נמצאת, פשוט לא מוצג כלום (במקום ליפול לתגית צדדית).
 	function syncTab() {
 		if (!visibleToMe()) return;
-		if (visibleComposers().length === 0) return;
+		var composers = visibleComposers();
+		if (composers.length === 0) return;
 
 		var input = findTagsInput();
 		if (!input || !isVisible(input)) return;
@@ -307,7 +402,10 @@
 		var container = input.closest('.bootstrap-tagsinput') || input.parentElement;
 		if (container.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
 		container.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
-		container.appendChild(buildInlineButton());
+
+		var composerEl = input.closest('.composer') || composers[0];
+		var isEdit = !!lastWizardData && composerHasWizardContent(composerEl);
+		container.appendChild(buildInlineButton(isEdit));
 	}
 
 	var observer = new MutationObserver(function () {
