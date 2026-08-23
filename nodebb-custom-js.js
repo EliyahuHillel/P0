@@ -252,12 +252,33 @@
 		return Array.prototype.filter.call(document.querySelectorAll('.composer'), isVisible);
 	}
 
+	// מחפשים את כפתור "ביטול" של חלון הכתיבה הזה עצמו (לפי הטקסט שלו, לא
+	// לפי class - כדי לא לתלות בשם מדויק שאין לי גישה אליו) ומדמים לחיצה
+	// עליו, כדי לסגור אותו לפני שפותחים חלון חדש וממולא - אחרת NodeBB
+	// מתמקד בחלון הריק הקיים במקום לפתוח אחד חדש עם הנתונים.
+	function discardComposerOf(el) {
+		var composerEl = el.closest('.composer');
+		if (!composerEl) return;
+		var candidates = composerEl.querySelectorAll('a, button');
+		for (var i = 0; i < candidates.length; i++) {
+			if ((candidates[i].textContent || '').trim() === 'ביטול') {
+				candidates[i].click();
+				return;
+			}
+		}
+	}
+
 	function buildInlineButton() {
 		var span = document.createElement('span');
-		span.innerHTML = '<a href="#" style="margin-inline-start:10px;color:#4f6b57;font-size:12.5px;font-weight:500;white-space:nowrap;">עזרה בקניית רכב</a>';
+		span.style.marginInlineStart = '10px';
+		span.innerHTML = '<a href="#" style="display:inline-block;padding:4px 12px;border:1px solid #e9e3d8;'
+			+ 'border-radius:999px;background:#faf7f2;color:#4f6b57;font-size:12px;font-weight:500;'
+			+ 'white-space:nowrap;text-decoration:none;">עזרה בקניית רכב</a>';
 		span.querySelector('a').addEventListener('click', function (e) {
 			e.preventDefault();
-			openWizard();
+			var btn = e.currentTarget;
+			discardComposerOf(btn);
+			setTimeout(openWizard, 300);
 		});
 		return span;
 	}
