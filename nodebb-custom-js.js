@@ -260,21 +260,14 @@
 		return span;
 	}
 
-	// מוצאים את שורת התגיות (מתחת לתיבת הטקסט, "הכנס תגיות...") בכמה דרכים
-	// שונות בלי תלות בקוד המדויק של פלאגין ה-composer - כי אין לי גישה אליו.
-	function findTagsRowContainer(composerEl) {
-		var byComponent = composerEl.querySelector('[component="composer/tags"]');
-		if (byComponent) return byComponent;
-
-		var byTagsInputPlugin = composerEl.querySelector('.bootstrap-tagsinput');
-		if (byTagsInputPlugin) return byTagsInputPlugin.parentElement || byTagsInputPlugin;
-
-		var inputs = composerEl.querySelectorAll('input[placeholder]');
-		for (var i = 0; i < inputs.length; i++) {
-			var ph = inputs[i].getAttribute('placeholder') || '';
-			if (ph.indexOf('תגי') !== -1 || ph.toLowerCase().indexOf('tag') !== -1) {
-				return inputs[i].closest('.tags-container, .bootstrap-tagsinput, div') || inputs[i].parentElement;
-			}
+	// שדה התגיות עצמו הוא <input class="ui-autocomplete-input" placeholder="הכנס תגיות...">
+	// (jQuery UI autocomplete, לא ספריית tagsinput) - מאתרים אותו ישירות לפי
+	// המחלקה + placeholder, כדי לא לתפוס בטעות שדה autocomplete אחר (כמו בחירת קטגוריה).
+	function findTagsInput(composerEl) {
+		var candidates = composerEl.querySelectorAll('input.ui-autocomplete-input');
+		for (var i = 0; i < candidates.length; i++) {
+			var ph = candidates[i].getAttribute('placeholder') || '';
+			if (ph.indexOf('תגי') !== -1) return candidates[i];
 		}
 		return null;
 	}
@@ -309,14 +302,14 @@
 		var missingTagsRow = false;
 
 		composers.forEach(function (composerEl) {
-			var row = findTagsRowContainer(composerEl);
-			if (!row) {
+			var input = findTagsInput(composerEl);
+			if (!input) {
 				missingTagsRow = true;
 				return;
 			}
-			if (row.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
-			row.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
-			row.appendChild(buildInlineButton());
+			if (input.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
+			input.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
+			input.insertAdjacentElement('afterend', buildInlineButton());
 		});
 
 		syncFallbackTab(composers.length > 0 && missingTagsRow);
