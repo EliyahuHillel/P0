@@ -24,7 +24,6 @@
 
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
-	var TAB_CLASS = 'car-wizard-tab';
 
 	function isAdmin() {
 		return typeof app !== 'undefined' && app.user && app.user.isAdmin;
@@ -37,13 +36,6 @@
 	function injectStyles() {
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
-			+ '.' + TAB_CLASS + '{position:fixed;top:50%;transform:translateY(-50%);left:0;z-index:1085;'
-			+ 'background:#faf7f2;color:#4f6b57;border:1px solid #e9e3d8;border-left:none;'
-			+ 'border-radius:0 10px 10px 0;padding:10px 14px 10px 10px;font-family:"Frank Ruhl Libre",Rubik,Arial,serif;'
-			+ 'font-size:12.5px;font-weight:500;letter-spacing:.2px;box-shadow:2px 0 10px rgba(80,70,50,.1);'
-			+ 'cursor:pointer;writing-mode:vertical-rl;text-orientation:mixed;transition:box-shadow .15s,background .15s;}'
-			+ '.' + TAB_CLASS + ':hover{background:#fff;box-shadow:3px 0 14px rgba(80,70,50,.16);}'
-			+ '.' + TAB_CLASS + ' .cw-tab-beta{display:block;font-size:9px;color:#a89f8f;margin-top:4px;font-family:Rubik,Arial,sans-serif;writing-mode:vertical-rl;}'
 			+ '#' + MODAL_ID + '-backdrop{position:fixed;inset:0;background:rgba(40,35,25,.45);'
 			+ 'z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;}'
 			+ '#' + MODAL_ID + '{background:#faf7f2;border-radius:16px;max-width:560px;width:100%;'
@@ -92,7 +84,7 @@
 		return ''
 			+ '<h3>עזרה חכמה בקניית רכב</h3>'
 			+ '<p class="cw-sub">מלאו פעם אחת - נחסוך את כל שאלות ההבהרה בתגובות. הפוסט יפורסם בקטגוריית "עסקאות רכב".</p>'
-			+ '<div class="cw-field"><label>תקציב (עד כמה, בש"ח)</label><input type="number" id="cw_budget" placeholder="למשל 60000"></div>'
+			+ '<div class="cw-field"><label>תקציב (עד כמה, בש״ח)</label><input type="number" id="cw_budget" placeholder="למשל 60000"></div>'
 			+ '<div class="cw-field"><label>ייעוד עיקרי</label>' + pillGroup('purpose', ['עירוני יומיומי', 'משפחתי', 'בין-עירוני', 'שטח']) + '</div>'
 			+ '<div class="cw-field"><label>מספר נוסעים</label><select id="cw_passengers"><option value="">בחרו...</option><option>1-2</option><option>3-4</option><option>5</option><option>6-7+</option></select></div>'
 			+ '<div class="cw-field"><label>נסועה שנתית (ק"מ)</label><select id="cw_mileage"><option value="">בחרו...</option><option>עד 10,000</option><option>10,000-20,000</option><option>20,000-30,000</option><option>מעל 30,000</option></select></div>'
@@ -147,6 +139,12 @@
 			+ '</div>';
 	}
 
+	function formatBudget(raw) {
+		var num = parseInt(raw, 10);
+		if (isNaN(num)) return raw;
+		return num.toLocaleString('en-US');
+	}
+
 	function sectionHeader(text) {
 		return '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#a89f8f;font-weight:600;padding:14px 20px 4px;">' + text + '</div>';
 	}
@@ -181,7 +179,7 @@
 		modal.querySelector('#cw_cancel').addEventListener('click', closeModal);
 
 		modal.querySelector('#cw_continue').addEventListener('click', function () {
-			var budget = modal.querySelector('#cw_budget').value || 'לא צוין';
+			var budget = formatBudget(modal.querySelector('#cw_budget').value) || 'לא צוין';
 			var purpose = getGroupValue(modal, 'purpose')[0] || 'לא צוין';
 			var passengers = modal.querySelector('#cw_passengers').value || 'לא צוין';
 			var mileage = modal.querySelector('#cw_mileage').value || 'לא צוין';
@@ -199,11 +197,11 @@
 			var content = ''
 				+ '<div style="border:1px solid #e9e3d8;border-radius:14px;overflow:hidden;font-family:Rubik,Arial,sans-serif;direction:rtl;max-width:480px;">'
 				+ '<div style="background:#faf7f2;padding:16px 20px;border-bottom:1px solid #e9e3d8;">'
-				+ '<div style="font-family:\'Frank Ruhl Libre\',serif;font-size:19px;font-weight:700;color:#332f28;">מחפש/ת רכב - סיכום דרישות</div>'
+				+ '<div style="font-family:\'Frank Ruhl Libre\',serif;font-size:19px;font-weight:700;color:#332f28;">מחפש רכב - סיכום דרישות</div>'
 				+ '</div>'
 				+ '<div style="padding:0 20px;">'
 				+ sectionHeader('פרטי בסיס')
-				+ summaryRow('תקציב', 'עד ' + budget + ' ש"ח')
+				+ summaryRow('תקציב', 'עד ' + budget + ' ש״ח')
 				+ summaryRow('ייעוד עיקרי', purpose)
 				+ summaryRow('מספר נוסעים', passengers)
 				+ summaryRow('נסועה שנתית', mileage + ' ק"מ')
@@ -225,7 +223,7 @@
 				+ '<div style="padding:10px 20px;background:#faf7f2;font-size:11px;color:#a89f8f;border-top:1px solid #e9e3d8;">פורסם באמצעות טופס "עזרה חכמה בקניית רכב"</div>'
 				+ '</div>';
 
-			var title = 'מחפש/ת רכב - תקציב עד ' + budget + ' ש"ח';
+			var title = 'מחפש רכב - תקציב עד ' + budget + ' ש״ח';
 
 			closeModal();
 
@@ -237,7 +235,6 @@
 		});
 	}
 
-	var TAB_ID = 'car-wizard-tab-el';
 	var TOOLBAR_ATTACHED_ATTR = 'data-car-wizard-attached';
 
 	// NodeBB לא תמיד מסיר את חלון הכתיבה מה-DOM כשסוגרים אותו (לפעמים רק
@@ -296,51 +293,21 @@
 		return null;
 	}
 
-	// מציג/מסתיר את התגית הצדדית (fallback, רק אם לא נמצאה שורת התגיות בחלון הכתיבה)
-	function syncFallbackTab(anyVisibleComposerWithoutTagsRow) {
-		var existing = document.getElementById(TAB_ID);
-		var show = anyVisibleComposerWithoutTagsRow && visibleToMe();
-
-		if (!show) {
-			if (existing) existing.remove();
-			return;
-		}
-		if (existing) return;
-
-		injectStyles();
-		var tab = document.createElement('div');
-		tab.id = TAB_ID;
-		tab.className = TAB_CLASS;
-		tab.innerHTML = 'עזרה בקניית רכב' + (ADMIN_ONLY_BETA ? '<span class="cw-tab-beta">בטא</span>' : '');
-		tab.addEventListener('click', openWizard);
-		document.body.appendChild(tab);
-	}
-
+	// מוסיפים אך ורק בתוך שורת התגיות - בלי שום חלופה במקום אחר.
+	// אם השורה לא נמצאת, פשוט לא מוצג כלום (במקום ליפול לתגית צדדית).
 	function syncTab() {
-		if (!visibleToMe()) {
-			syncFallbackTab(false);
-			return;
-		}
-
-		var composers = visibleComposers();
-		if (composers.length === 0) {
-			syncFallbackTab(false);
-			return;
-		}
+		if (!visibleToMe()) return;
+		if (visibleComposers().length === 0) return;
 
 		var input = findTagsInput();
-		if (input && isVisible(input)) {
-			// ה-input גר בתוך <div class="bootstrap-tagsinput"> (יחד עם תיבת
-			// הצעות אוטומטיות נסתרת) - מוסיפים בסוף אותו div, לא צמוד ל-input עצמו.
-			var container = input.closest('.bootstrap-tagsinput') || input.parentElement;
-			if (!container.getAttribute(TOOLBAR_ATTACHED_ATTR)) {
-				container.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
-				container.appendChild(buildInlineButton());
-			}
-			syncFallbackTab(false);
-		} else {
-			syncFallbackTab(true);
-		}
+		if (!input || !isVisible(input)) return;
+
+		// ה-input גר בתוך <div class="bootstrap-tagsinput"> (יחד עם תיבת
+		// הצעות אוטומטיות נסתרת) - מוסיפים בסוף אותו div, לא צמוד ל-input עצמו.
+		var container = input.closest('.bootstrap-tagsinput') || input.parentElement;
+		if (container.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
+		container.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
+		container.appendChild(buildInlineButton());
 	}
 
 	var observer = new MutationObserver(function () {
