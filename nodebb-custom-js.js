@@ -242,8 +242,10 @@
 
 	// NodeBB לא תמיד מסיר את חלון הכתיבה מה-DOM כשסוגרים אותו (לפעמים רק
 	// מסתיר/ממזער) - אז בודקים גם נראות בפועל, לא רק קיום באלמנטים.
+	// (offsetParent מחזיר null עבור אלמנטים עם position:fixed גם כשהם כן
+	// מוצגים בפועל - זו תקלה ידועה בדפדפנים, ולכן לא משתמשים בו כאן.)
 	function isVisible(el) {
-		return !!el && el.offsetParent !== null;
+		return !!el && el.getClientRects().length > 0;
 	}
 
 	function visibleComposers() {
@@ -307,9 +309,12 @@
 
 		var input = findTagsInput();
 		if (input && isVisible(input)) {
-			if (!input.getAttribute(TOOLBAR_ATTACHED_ATTR)) {
-				input.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
-				input.insertAdjacentElement('afterend', buildInlineButton());
+			// ה-input גר בתוך <div class="bootstrap-tagsinput"> (יחד עם תיבת
+			// הצעות אוטומטיות נסתרת) - מוסיפים בסוף אותו div, לא צמוד ל-input עצמו.
+			var container = input.closest('.bootstrap-tagsinput') || input.parentElement;
+			if (!container.getAttribute(TOOLBAR_ATTACHED_ATTR)) {
+				container.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
+				container.appendChild(buildInlineButton());
 			}
 			syncFallbackTab(false);
 		} else {
