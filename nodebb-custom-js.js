@@ -250,20 +250,39 @@
 		return Array.prototype.filter.call(document.querySelectorAll('.composer'), isVisible);
 	}
 
-	function buildToolbarIcon() {
-		var li = document.createElement('li');
-		li.innerHTML = '<a href="#" title="עזרה בקניית רכב" style="color:#4f6b57;">רכב</a>';
-		li.querySelector('a').addEventListener('click', function (e) {
+	function buildInlineButton() {
+		var span = document.createElement('span');
+		span.innerHTML = '<a href="#" style="margin-inline-start:10px;color:#4f6b57;font-size:12.5px;font-weight:500;white-space:nowrap;">עזרה בקניית רכב</a>';
+		span.querySelector('a').addEventListener('click', function (e) {
 			e.preventDefault();
 			openWizard();
 		});
-		return li;
+		return span;
 	}
 
-	// מציג/מסתיר את התגית הצדדית (fallback, רק אם לא נמצאה שורת הכלים בחלון הכתיבה)
-	function syncFallbackTab(anyVisibleComposerWithoutToolbar) {
+	// מוצאים את שורת התגיות (מתחת לתיבת הטקסט, "הכנס תגיות...") בכמה דרכים
+	// שונות בלי תלות בקוד המדויק של פלאגין ה-composer - כי אין לי גישה אליו.
+	function findTagsRowContainer(composerEl) {
+		var byComponent = composerEl.querySelector('[component="composer/tags"]');
+		if (byComponent) return byComponent;
+
+		var byTagsInputPlugin = composerEl.querySelector('.bootstrap-tagsinput');
+		if (byTagsInputPlugin) return byTagsInputPlugin.parentElement || byTagsInputPlugin;
+
+		var inputs = composerEl.querySelectorAll('input[placeholder]');
+		for (var i = 0; i < inputs.length; i++) {
+			var ph = inputs[i].getAttribute('placeholder') || '';
+			if (ph.indexOf('תגי') !== -1 || ph.toLowerCase().indexOf('tag') !== -1) {
+				return inputs[i].closest('.tags-container, .bootstrap-tagsinput, div') || inputs[i].parentElement;
+			}
+		}
+		return null;
+	}
+
+	// מציג/מסתיר את התגית הצדדית (fallback, רק אם לא נמצאה שורת התגיות בחלון הכתיבה)
+	function syncFallbackTab(anyVisibleComposerWithoutTagsRow) {
 		var existing = document.getElementById(TAB_ID);
-		var show = anyVisibleComposerWithoutToolbar && visibleToMe();
+		var show = anyVisibleComposerWithoutTagsRow && visibleToMe();
 
 		if (!show) {
 			if (existing) existing.remove();
@@ -287,20 +306,20 @@
 		}
 
 		var composers = visibleComposers();
-		var missingToolbar = false;
+		var missingTagsRow = false;
 
 		composers.forEach(function (composerEl) {
-			var bar = composerEl.querySelector('.formatting-bar');
-			if (!bar) {
-				missingToolbar = true;
+			var row = findTagsRowContainer(composerEl);
+			if (!row) {
+				missingTagsRow = true;
 				return;
 			}
-			if (bar.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
-			bar.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
-			bar.appendChild(buildToolbarIcon());
+			if (row.getAttribute(TOOLBAR_ATTACHED_ATTR)) return;
+			row.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
+			row.appendChild(buildInlineButton());
 		});
 
-		syncFallbackTab(composers.length > 0 && missingToolbar);
+		syncFallbackTab(composers.length > 0 && missingTagsRow);
 	}
 
 	var observer = new MutationObserver(function () {
