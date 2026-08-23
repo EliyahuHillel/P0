@@ -14,8 +14,13 @@
  *
  * אחרי שהחלון נפתח ממולא, הכפתור באותה שורת תגיות משנה את עצמו אוטומטית
  * ל"עריכת פרטי החיפוש": לחיצה עליו פותחת שוב את אותו טופס, ממולא בדיוק
- * כפי שמולא בפעם הקודמת, כדי שאם נזכרים במשהו לפני הפרסום אפשר לשנות/
- * להוסיף דרך הטופס עצמו - בלי לגעת בכלל בקוד ה-HTML הגולמי שנוצר.
+ * כפי שמולא בפעם הקודמת (הנתונים שמורים כ-JSON חבוי בתוך הפוסט עצמו, לא
+ * רק בזיכרון - כך שזה עובד גם בעריכה של פוסט שכבר פורסם, אחרי רענון דף
+ * או אפילו יום אחרי). לחיצה על "עריכת פרטי החיפוש" *לא* פותחת נושא חדש -
+ * היא מעדכנת במקום את הכותרת והתוכן של אותו חלון כתיבה בדיוק (בין אם זה
+ * החלון שעדיין לא פורסם, ובין אם זה חלון ה"עריכה" הרגיל של NodeBB שנפתח
+ * על פוסט שכבר קיים) - כך שלעולם אין פרסום כפול, ואף פעם לא צריך לגעת
+ * ידנית בקוד ה-HTML הגולמי.
  */
 (function () {
 	'use strict';
@@ -30,15 +35,31 @@
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
 
-	// תג HTML-comment בתחילת התוכן שנוצר - בלתי נראה בפוסט עצמו, אבל מאפשר
-	// לזהות אם חלון כתיבה נתון כבר מכיל תוכן שהאשף יצר (כדי להציע "עריכת
-	// פרטים" שפותחת מחדש את האשף עם אותם נתונים, במקום לתת למשתמש לגעת
-	// ידנית בקוד ה-HTML ולסכן שבירה שלו).
-	var WIZARD_MARKER = '<!--car-wizard-v1-->';
+	// כל הנתונים שהוזנו באשף נשמרים כ-JSON חבוי (מקודד) בתוך תג HTML-comment
+	// בתחילת התוכן שנוצר - בלתי נראה בפוסט עצמו, אבל מאפשר לשחזר את כל
+	// התשובות מתוך הפוסט עצמו (גם אחרי רענון דף/יום אחרי/בעריכת פוסט שכבר
+	// פורסם) - בלי להסתמך על שום דבר ששמור רק בזיכרון של הדף.
+	var WIZARD_MARKER_PREFIX = '<!--car-wizard-v1:';
+	var WIZARD_MARKER_SUFFIX = '-->';
 
-	// נתוני המילוי האחרונים באשף (כדי לאפשר "עריכת פרטים" שפותחת את האשף
-	// מחדש כשהוא כבר ממולא, בלי לגעת בכלל ב-HTML הגולמי).
-	var lastWizardData = null;
+	function buildMarker(data) {
+		return WIZARD_MARKER_PREFIX + encodeURIComponent(JSON.stringify(data)) + WIZARD_MARKER_SUFFIX;
+	}
+
+	// מחלץ את נתוני האשף מתוך תוכן פוסט (אם קיימים) - מחזיר null אם אין.
+	function parseMarker(text) {
+		if (!text) return null;
+		var start = text.indexOf(WIZARD_MARKER_PREFIX);
+		if (start === -1) return null;
+		var jsonStart = start + WIZARD_MARKER_PREFIX.length;
+		var end = text.indexOf(WIZARD_MARKER_SUFFIX, jsonStart);
+		if (end === -1) return null;
+		try {
+			return JSON.parse(decodeURIComponent(text.slice(jsonStart, end)));
+		} catch (e) {
+			return null;
+		}
+	}
 
 	function isAdmin() {
 		return typeof app !== 'undefined' && app.user && app.user.isAdmin;
@@ -214,7 +235,7 @@
 			+ '</div>';
 	}
 
-	function openWizard(prefillData) {
+	function openWizard(prefillData, targetComposerEl) {
 		injectStyles();
 		closeModal();
 		var backdrop = document.createElement('div');
@@ -256,9 +277,10 @@
 			var region = regionVal || 'לא צוין';
 			var notes = modal.querySelector('#cw_notes').value.trim();
 
-			// שומרים את הנתונים הגולמיים (לא המעוצבים) כדי שכפתור "עריכת
-			// פרטים" יוכל לפתוח את האשף מחדש ממולא בדיוק כפי שהוזן.
-			lastWizardData = {
+			// הנתונים הגולמיים (לא המעוצבים) - נשמרים מקודדים בתוך הפוסט עצמו
+			// (ראו buildMarker) כדי ש"עריכת פרטים" תמיד תוכל לשחזר אותם, גם
+			// מפוסט שכבר פורסם.
+			var data = {
 				budgetRaw: budgetRaw,
 				purpose: purposeVal,
 				passengers: passengersVal,
@@ -275,7 +297,7 @@
 				notes: notes
 			};
 
-			var content = WIZARD_MARKER
+			var content = buildMarker(data)
 				+ '<div style="border:1px solid #e9e3d8;border-radius:14px;overflow:hidden;font-family:Rubik,Arial,sans-serif;direction:rtl;max-width:480px;">'
 				+ '<div style="background:#faf7f2;padding:16px 20px;border-bottom:1px solid #e9e3d8;">'
 				+ '<div style="font-family:\'Frank Ruhl Libre\',serif;font-size:19px;font-weight:700;color:#332f28;">מחפש רכב - סיכום דרישות</div>'
@@ -308,7 +330,13 @@
 
 			closeModal();
 
-			if (typeof app !== 'undefined' && typeof app.newTopic === 'function') {
+			if (targetComposerEl) {
+				// עריכה במקום: מעדכנים את הכותרת/תוכן של אותו חלון כתיבה עצמו
+				// (בין אם עדיין לא פורסם, ובין אם זה חלון "עריכה" על פוסט
+				// שכבר קיים) - לא פותחים נושא חדש, כדי לא ליצור פרסום כפול.
+				setFieldValue(findComposerTitleInput(targetComposerEl), title);
+				setFieldValue(targetComposerEl.querySelector('textarea'), content);
+			} else if (typeof app !== 'undefined' && typeof app.newTopic === 'function') {
 				app.newTopic({ cid: CATEGORY_ID, title: title, body: content });
 			} else {
 				alert('שגיאה: לא נמצאה פונקציית הפרסום של הפורום. נסו לרענן את הדף.');
@@ -346,17 +374,32 @@
 		}
 	}
 
-	// בודקים אם חלון הכתיבה הזה כבר מכיל תוכן שהאשף יצר (לפי תג ה-HTML-comment
-	// שהוטבע בתחילת התוכן) - כדי להציע "עריכת פרטים" (פותח את האשף מחדש
-	// ממולא) במקום "עזרה בקניית רכב", וכך המשתמש אף פעם לא צריך לגעת ידנית
-	// בקוד ה-HTML הגולמי אם נזכר במשהו שרוצה להוסיף/לשנות.
-	function composerHasWizardContent(composerEl) {
-		if (!composerEl) return false;
+	// בודקים אם חלון הכתיבה הזה כבר מכיל תוכן שהאשף יצר (לפי ה-JSON החבוי
+	// בתחילת התוכן) ומחזירים את הנתונים עצמם - כדי להציע "עריכת פרטים"
+	// (פותח את האשף מחדש ממולא, ומעדכן במקום את אותו חלון כתיבה) במקום
+	// "עזרה בקניית רכב". זה עובד גם על חלון "עריכה" של פוסט שכבר פורסם
+	// (NodeBB טוען אליו את התוכן הגולמי הקיים, כולל ה-JSON החבוי), ולכן
+	// המשתמש אף פעם לא צריך לגעת ידנית בקוד ה-HTML, ולא יוצר פרסום כפול.
+	function getComposerWizardData(composerEl) {
+		if (!composerEl) return null;
 		var ta = composerEl.querySelector('textarea');
-		return !!(ta && ta.value && ta.value.indexOf(WIZARD_MARKER) !== -1);
+		return ta ? parseMarker(ta.value) : null;
 	}
 
-	function buildInlineButton(isEdit) {
+	function findComposerTitleInput(composerEl) {
+		return composerEl.querySelector('[component="composer/title"]') || composerEl.querySelector('input[name="title"]');
+	}
+
+	// קובעים ערך בשדה קלט/textarea של NodeBB ומיידעים את שאר הקוד (למשל
+	// תצוגה מקדימה חיה) על השינוי - לא מספיק סתם לקבוע .value.
+	function setFieldValue(el, value) {
+		if (!el) return;
+		el.value = value;
+		el.dispatchEvent(new Event('input', { bubbles: true }));
+		el.dispatchEvent(new Event('change', { bubbles: true }));
+	}
+
+	function buildInlineButton(isEdit, wizardData, composerEl) {
 		var span = document.createElement('span');
 		span.style.marginInlineStart = '10px';
 		var label = isEdit ? 'עריכת פרטי החיפוש' : 'עזרה בקניית רכב';
@@ -366,10 +409,16 @@
 		span.querySelector('a').addEventListener('click', function (e) {
 			e.preventDefault();
 			var btn = e.currentTarget;
-			discardComposerOf(btn);
-			setTimeout(function () {
-				openWizard(isEdit ? lastWizardData : null);
-			}, 300);
+			if (isEdit) {
+				// מעדכנים במקום את אותו חלון כתיבה - בלי לסגור/לפתוח חדש,
+				// ובלי לקרוא ל-app.newTopic (שהיה יוצר נושא כפול).
+				openWizard(wizardData, composerEl);
+			} else {
+				discardComposerOf(btn);
+				setTimeout(function () {
+					openWizard(null, null);
+				}, 300);
+			}
 		});
 		return span;
 	}
@@ -404,8 +453,8 @@
 		container.setAttribute(TOOLBAR_ATTACHED_ATTR, '1');
 
 		var composerEl = input.closest('.composer') || composers[0];
-		var isEdit = !!lastWizardData && composerHasWizardContent(composerEl);
-		container.appendChild(buildInlineButton(isEdit));
+		var wizardData = getComposerWizardData(composerEl);
+		container.appendChild(buildInlineButton(!!wizardData, wizardData, composerEl));
 	}
 
 	var observer = new MutationObserver(function () {
