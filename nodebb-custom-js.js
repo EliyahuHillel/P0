@@ -216,18 +216,37 @@
 		});
 	}
 
-	// כשחלון כתיבה כלשהו נפתח (נושא חדש/תגובה, בכל קטגוריה) - מוסיפים כפתור
-	// צדדי צמוד לחלון עצמו. מכיוון שהוא ילד ב-DOM של החלון, הוא נעלם לבד כשסוגרים אותו.
-	$(window).on('action:composer.enhance', function (event, data) {
-		if (!visibleToMe()) return;
-		if (!data || !data.container || !data.container.length) return;
+	var TAB_ID = 'car-wizard-tab-el';
+
+	// מצמידים את הכפתור ל-document.body (לא לחלון הכתיבה עצמו) כדי שלא
+	// ייתפס/ייחתך אם לחלון הכתיבה יש CSS transform/overflow פנימיים -
+	// אבל מציגים/מסתירים אותו לפי קיום .composer בדף, שנבדק דרך MutationObserver
+	// (אותה שיטה שכבר עובדת אצלך בקוד הקיים - הבלוקים המוערים של "פרופיל" ו-"browsing users").
+	function syncTab() {
+		var composerOpen = document.querySelector('.composer') !== null;
+		var show = composerOpen && visibleToMe();
+		var existing = document.getElementById(TAB_ID);
+
+		if (!show) {
+			if (existing) existing.remove();
+			return;
+		}
+		if (existing) return;
 
 		injectStyles();
-
 		var tab = document.createElement('div');
+		tab.id = TAB_ID;
 		tab.className = TAB_CLASS;
 		tab.innerHTML = 'עזרה בקניית רכב' + (ADMIN_ONLY_BETA ? '<span class="cw-tab-beta">בטא</span>' : '');
 		tab.addEventListener('click', openWizard);
-		data.container.get(0).appendChild(tab);
+		document.body.appendChild(tab);
+	}
+
+	var observer = new MutationObserver(function () {
+		syncTab();
 	});
+	observer.observe(document.body, { childList: true, subtree: true });
+
+	// בדיקה ראשונית, ליתר ביטחון (למקרה שחלון כתיבה כבר פתוח בטעינת הדף)
+	syncTab();
 })();
