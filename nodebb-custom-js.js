@@ -3,12 +3,16 @@
  * (לוודא שה-checkbox "Enable Custom JS" מסומן, ואז לשמור)
  *
  * מה זה עושה:
- * כשמשתמש נמצא בקטגוריית "בקשות רכב" (או בכל דף שמעלה אותה), מופיע כפתור צף
- * שפותח טופס שאלון. בסיום מילוי הטופס, נבנה כותרת+תוכן מסודרים, ונקרא לפונקציה
- * המובנית app.newTopic() של NodeBB - זו בדיוק הפונקציה שכפתור "פוסט חדש" הרגיל
- * קורא לה. NodeBB פותח את חלון הכתיבה הרגיל, כבר מלא בתוכן שלנו, והמשתמש
- * לוחץ על כפתור הפרסום הרגיל. אין כאן שום קריאת API עצמאית, שום CORS, שום
- * טיפול ב-cookie/CSRF - הכל עובר דרך המנגנון המובנה של NodeBB.
+ * 1. בדף רשימת הנושאים של קטגוריית "עסקאות רכב" (ורק שם - לא בתוך שרשורים
+ *    בודדים) מופיע פס עדין שמזכיר שיש טופס מהיר.
+ * 2. בכל מקרה שבו לוחצים על כפתור "נושא חדש" (#new_topic - מזהה קבוע בליבת
+ *    NodeBB) בזמן שנמצאים בקטגוריה הזו, הלחיצה נתפסת *לפני* שחלון הכתיבה
+ *    הרגיל נפתח, ובמקום זה נפתח הטופס שלנו.
+ * 3. בסיום מילוי הטופס נבנה כותרת + "כרטיסיית סיכום" מעוצבת (HTML/CSS מוטבע,
+ *    לא Markdown גולמי), ונקרא לפונקציה app.newTopic() המובנית של NodeBB -
+ *    זו בדיוק הפונקציה שהכפתור הרגיל קורא לה. NodeBB פותח את חלון הכתיבה
+ *    הרגיל, כבר מלא, והמשתמש לוחץ על כפתור הפרסום הרגיל. אין קריאת API
+ *    עצמאית, אין CORS, אין טיפול ב-cookie/CSRF - הכל דרך NodeBB עצמו.
  */
 (function () {
 	'use strict';
@@ -16,24 +20,39 @@
 	// קטגוריית "עסקאות רכב" - https://rechavimzelaze.ovh/category/82/עסקאות-רכב
 	var CATEGORY_ID = 82;
 
-	// מצב בטא: כל עוד true, הכפתור מוצג רק למנהלים (app.user.isAdmin) - אף משתמש
-	// רגיל לא רואה אותו. להחליף ל-false כדי לפתוח לכולם, אחרי אישור המנהל הראשי.
+	// מצב בטא: כל עוד true, הכל מוצג רק למנהלים (app.user.isAdmin) - אף משתמש
+	// רגיל לא רואה שום דבר. להחליף ל-false כדי לפתוח לכולם, אחרי אישור המנהל הראשי.
 	var ADMIN_ONLY_BETA = true;
 
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
-	var BTN_ID = 'car-wizard-fab';
+	var BANNER_ID = 'car-wizard-banner';
+
+	function isAdmin() {
+		return typeof app !== 'undefined' && app.user && app.user.isAdmin;
+	}
+
+	function visibleToMe() {
+		return !ADMIN_ONLY_BETA || isAdmin();
+	}
+
+	function onCategoryIndexPage() {
+		var d = window.ajaxify && window.ajaxify.data;
+		return !!(d && d.template && d.template.category && String(d.cid) === String(CATEGORY_ID));
+	}
 
 	function injectStyles() {
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
-			+ '#' + BTN_ID + '{position:fixed;bottom:24px;left:24px;z-index:1090;'
-			+ 'background:#faf7f2;color:#4f6b57;border:1px solid #e9e3d8;border-radius:999px;'
-			+ 'padding:12px 20px;font-family:"Frank Ruhl Libre",Rubik,Arial,serif;font-size:13.5px;'
-			+ 'font-weight:500;letter-spacing:.2px;box-shadow:0 2px 12px rgba(80,70,50,.12);'
-			+ 'cursor:pointer;transition:box-shadow .15s,background .15s;}'
-			+ '#' + BTN_ID + ':hover{background:#fff;box-shadow:0 4px 16px rgba(80,70,50,.16);}'
-			+ '#' + BTN_ID + ' .cw-fab-beta{display:block;font-size:10px;color:#a89f8f;margin-top:2px;font-family:Rubik,Arial,sans-serif;}'
+			+ '#' + BANNER_ID + '{background:#faf7f2;border:1px solid #e9e3d8;border-radius:12px;'
+			+ 'padding:14px 18px;margin:0 0 16px;display:flex;align-items:center;justify-content:space-between;'
+			+ 'gap:12px;font-family:Rubik,Arial,sans-serif;direction:rtl;}'
+			+ '#' + BANNER_ID + ' .cw-banner-text{font-size:13.5px;color:#332f28;}'
+			+ '#' + BANNER_ID + ' .cw-banner-text b{font-family:"Frank Ruhl Libre",serif;font-weight:700;}'
+			+ '#' + BANNER_ID + ' .cw-banner-sub{display:block;font-size:11px;color:#a89f8f;margin-top:2px;}'
+			+ '#' + BANNER_ID + ' button{flex-shrink:0;background:#4f6b57;color:#fff;border:none;'
+			+ 'border-radius:8px;padding:9px 16px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;}'
+			+ '#' + BANNER_ID + ' button:hover{opacity:.92;}'
 			+ '#' + MODAL_ID + '-backdrop{position:fixed;inset:0;background:rgba(40,35,25,.45);'
 			+ 'z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;}'
 			+ '#' + MODAL_ID + '{background:#faf7f2;border-radius:16px;max-width:560px;width:100%;'
@@ -129,6 +148,14 @@
 		if (backdrop) backdrop.remove();
 	}
 
+	// שורה בכרטיסיית הסיכום - HTML+CSS מוטבע, לא Markdown
+	function summaryRow(label, value) {
+		return '<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #f1ede6;">'
+			+ '<span style="color:#867d6e;font-size:13.5px;white-space:nowrap;">' + label + '</span>'
+			+ '<span style="color:#332f28;font-weight:600;font-size:13.5px;text-align:left;">' + value + '</span>'
+			+ '</div>';
+	}
+
 	function openWizard() {
 		injectStyles();
 		closeModal();
@@ -162,30 +189,34 @@
 			var region = modal.querySelector('#cw_region').value || 'לא צוין';
 			var notes = modal.querySelector('#cw_notes').value.trim();
 
-			var content = '### מחפש/ת רכב - פרטים מלאים\n\n';
-			content += '| שדה | ערך |\n|---|---|\n';
-			content += '| תקציב | עד ' + budget + ' ש"ח |\n';
-			content += '| ייעוד עיקרי | ' + purpose + ' |\n';
-			content += '| מספר נוסעים | ' + passengers + ' |\n';
-			content += '| נסועה שנתית | ' + mileage + ' ק"מ |\n';
-			content += '| חשיבות חיסכון בדלק | ' + econ + '/5 |\n';
-			content += '| חשיבות כוח/עוצמה | ' + power + '/5 |\n';
-			content += '| חשיבות אמינות | ' + reliab + '/5 |\n';
-			content += '| חשיבות נוחות | ' + comfort + '/5 |\n';
-			content += '| חשיבות גודל מטען | ' + trunk + '/5 |\n';
-			content += '| גיר | ' + gear + ' |\n';
-			content += '| סוג הנעה | ' + fuel + ' |\n';
-			content += '| יד | ' + hand + ' |\n';
-			content += '| אזור | ' + region + ' |\n';
-			if (notes) content += '\n**הערות נוספות:** ' + notes + '\n';
-			content += '\n---\n_פורסם באמצעות טופס "עזרה חכמה בקניית רכב"_';
+			var content = ''
+				+ '<div style="border:1px solid #e9e3d8;border-radius:14px;overflow:hidden;font-family:Rubik,Arial,sans-serif;direction:rtl;max-width:480px;">'
+				+ '<div style="background:#faf7f2;padding:16px 20px;border-bottom:1px solid #e9e3d8;">'
+				+ '<div style="font-family:\'Frank Ruhl Libre\',serif;font-size:19px;font-weight:700;color:#332f28;">מחפש/ת רכב - סיכום דרישות</div>'
+				+ '</div>'
+				+ '<div style="padding:4px 20px;">'
+				+ summaryRow('תקציב', 'עד ' + budget + ' ש"ח')
+				+ summaryRow('ייעוד עיקרי', purpose)
+				+ summaryRow('מספר נוסעים', passengers)
+				+ summaryRow('נסועה שנתית', mileage + ' ק"מ')
+				+ summaryRow('חשיבות חיסכון בדלק', econ + '/5')
+				+ summaryRow('חשיבות כוח/עוצמה', power + '/5')
+				+ summaryRow('חשיבות אמינות', reliab + '/5')
+				+ summaryRow('חשיבות נוחות', comfort + '/5')
+				+ summaryRow('חשיבות גודל מטען', trunk + '/5')
+				+ summaryRow('גיר', gear)
+				+ summaryRow('סוג הנעה', fuel)
+				+ summaryRow('יד', hand)
+				+ summaryRow('אזור', region)
+				+ '</div>'
+				+ (notes ? '<div style="padding:12px 20px;font-size:13.5px;color:#332f28;border-top:1px solid #e9e3d8;"><b>הערות נוספות:</b> ' + notes + '</div>' : '')
+				+ '<div style="padding:10px 20px;background:#faf7f2;font-size:11px;color:#a89f8f;border-top:1px solid #e9e3d8;">פורסם באמצעות טופס "עזרה חכמה בקניית רכב"</div>'
+				+ '</div>';
 
 			var title = 'מחפש/ת רכב - תקציב עד ' + budget + ' ש"ח';
 
 			closeModal();
 
-			// זו הקריאה המרכזית - משתמשת בפונקציה המובנית של NodeBB עצמו.
-			// זה פותח את חלון הכתיבה הרגיל, ממולא מראש, בלי לגעת ב-API בעצמנו.
 			if (typeof app !== 'undefined' && typeof app.newTopic === 'function') {
 				app.newTopic({ cid: CATEGORY_ID, title: title, body: content });
 			} else {
@@ -194,30 +225,41 @@
 		});
 	}
 
-	function ensureButton() {
-		var onTargetCategory = window.ajaxify && window.ajaxify.data &&
-			String(window.ajaxify.data.cid) === String(CATEGORY_ID);
-
-		var isAdmin = typeof app !== 'undefined' && app.user && app.user.isAdmin;
-		var visibleToMe = !ADMIN_ONLY_BETA || isAdmin;
-
-		var existing = document.getElementById(BTN_ID);
-		if (!onTargetCategory || !visibleToMe) {
+	function ensureBanner() {
+		var existing = document.getElementById(BANNER_ID);
+		if (!onCategoryIndexPage() || !visibleToMe()) {
 			if (existing) existing.remove();
 			return;
 		}
 		if (existing) return;
 
 		injectStyles();
-		var btn = document.createElement('button');
-		btn.id = BTN_ID;
-		btn.type = 'button';
-		btn.innerHTML = 'עזרה בקניית רכב' + (ADMIN_ONLY_BETA ? '<span class="cw-fab-beta">בטא - מוצג רק למנהלים</span>' : '');
-		btn.addEventListener('click', openWizard);
-		document.body.appendChild(btn);
+		var container = document.querySelector('[component="category"]') || document.getElementById('content') || document.body;
+		var banner = document.createElement('div');
+		banner.id = BANNER_ID;
+		banner.innerHTML = ''
+			+ '<div class="cw-banner-text"><b>לפני שפותחים בקשת עזרה בקניית רכב</b>'
+			+ (ADMIN_ONLY_BETA ? '<span class="cw-banner-sub">בטא - מוצג רק למנהלים</span>' : '<span class="cw-banner-sub">טופס קצר שחוסך את כל שאלות ההבהרה</span>')
+			+ '</div>'
+			+ '<button type="button" id="cw_open_from_banner">למילוי הטופס</button>';
+		container.insertBefore(banner, container.firstChild);
+		banner.querySelector('#cw_open_from_banner').addEventListener('click', openWizard);
 	}
 
-	// NodeBB טוען דפים דרך ajaxify בלי רענון מלא - צריך להאזין לאירוע הזה
-	$(window).on('action:ajaxify.end', ensureButton);
-	$(document).ready(ensureButton);
+	// יירוט לחיצה על "נושא חדש" (#new_topic - מזהה קבוע בליבת NodeBB) - שלב
+	// תפיסה (capture) כדי לפעול *לפני* הליבה של NodeBB, ורק כשנמצאים בקטגוריה שלנו.
+	document.addEventListener('click', function (e) {
+		if (!visibleToMe()) return;
+		var target = e.target && e.target.closest && e.target.closest('#new_topic');
+		if (!target) return;
+		if (!onCategoryIndexPage()) return; // לא הקטגוריה שלנו - נותנים להתנהגות הרגילה לקרות
+
+		e.preventDefault();
+		e.stopPropagation();
+		e.stopImmediatePropagation();
+		openWizard();
+	}, true);
+
+	$(window).on('action:ajaxify.end', ensureBanner);
+	$(document).ready(ensureBanner);
 })();
