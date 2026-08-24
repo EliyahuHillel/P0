@@ -30,7 +30,7 @@
 
 	// מצב בטא: כל עוד true, הכפתור מוצג רק למנהלים (app.user.isAdmin) - אף
 	// משתמש רגיל לא רואה שום דבר. להחליף ל-false אחרי אישור המנהל הראשי.
-	var ADMIN_ONLY_BETA = true;
+	var ADMIN_ONLY_BETA = false;
 
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
