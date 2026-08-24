@@ -34,6 +34,27 @@
 
 	var STYLE_ID = 'car-wizard-style';
 	var MODAL_ID = 'car-wizard-modal';
+	var BUTTON_STYLE_ID = 'car-wizard-button-style';
+
+	// עיצוב הכפתור בשורת התגיות - בגוון ירקרק עדין שמובחן מהרקע הקרם של
+	// השורה עצמה (בניגוד לגוון הקרם המקורי שכמעט "נבלע" בתוכה), ועם הבהוב
+	// עדין (טבעת שמתרחבת ודועכת) שמושך תשומת לב בלי לשנות את הגודל בכלל.
+	function injectButtonStyles() {
+		if (document.getElementById(BUTTON_STYLE_ID)) return;
+		var css = ''
+			+ '@keyframes car-wizard-pulse{'
+			+ '0%{box-shadow:0 0 0 0 rgba(61,82,69,.45);}'
+			+ '70%{box-shadow:0 0 0 5px rgba(61,82,69,0);}'
+			+ '100%{box-shadow:0 0 0 0 rgba(61,82,69,0);}'
+			+ '}'
+			+ '.car-wizard-tag-btn{display:inline-block;padding:4px 12px;border:1px solid #b9cdb9;'
+			+ 'border-radius:999px;background:#eef2ec;color:#3d5245;font-size:12px;font-weight:500;'
+			+ 'white-space:nowrap;text-decoration:none;animation:car-wizard-pulse 2.4s ease-out infinite;}';
+		var style = document.createElement('style');
+		style.id = BUTTON_STYLE_ID;
+		style.textContent = css;
+		document.head.appendChild(style);
+	}
 
 	// כל הנתונים שהוזנו באשף נשמרים כ-JSON חבוי (מקודד) בתוך תג HTML-comment
 	// בתחילת התוכן שנוצר - בלתי נראה בפוסט עצמו, אבל מאפשר לשחזר את כל
@@ -410,9 +431,7 @@
 		var span = document.createElement('span');
 		span.style.marginInlineStart = '10px';
 		var label = isEdit ? 'עריכת פרטי החיפוש' : 'עזרה בקניית רכב';
-		span.innerHTML = '<a href="#" style="display:inline-block;padding:4px 12px;border:1px solid #e9e3d8;'
-			+ 'border-radius:999px;background:#faf7f2;color:#4f6b57;font-size:12px;font-weight:500;'
-			+ 'white-space:nowrap;text-decoration:none;">' + label + '</a>';
+		span.innerHTML = '<a href="#" class="car-wizard-tag-btn">' + label + '</a>';
 		span.querySelector('a').addEventListener('click', function (e) {
 			e.preventDefault();
 			var btn = e.currentTarget;
@@ -468,6 +487,8 @@
 		syncTab();
 	});
 	observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+
+	injectButtonStyles();
 
 	// בדיקה ראשונית, ליתר ביטחון (למקרה שחלון כתיבה כבר פתוח בטעינת הדף)
 	syncTab();
