@@ -1,0 +1,9 @@
+{
+  "id": "nodebb-plugin-insurance-reminder",
+  "name": "Insurance Renewal Reminder",
+  "description": "שומר לכל משתמש תאריך תוקף/חידוש ביטוח רכב, ושולח התראת NodeBB אוטומטית כשנותרו 14 יום או פחות לחידוש.",
+  "library": "./library.js",
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" }
+  ]
+}
