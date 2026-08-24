@@ -11,9 +11,22 @@
  * 1. בעמוד "עריכת פרופיל" (/user/<שם-משתמש>/edit) - מוסיף כרטיסייה
  *    "ביטוח רכב" עם שני שדות תאריך (תחילת ביטוח / תוקף עד-חידוש) וכפתור
  *    שמירה, ממולאת מראש מהערכים השמורים אם יש.
- * 2. בכל עמוד (למחובר בלבד) - אם נותרו 14 יום או פחות לחידוש (או שהתאריך
+ * 2. בעמוד הפרופיל הציבורי (/user/<שם-משתמש>) - כשזה הפרופיל *של עצמך*
+ *    בלבד - מוסיף ריבוע "ימים לתוקף ביטוח" ליד ריבועי המוניטין/פוסטים
+ *    הקיימים. אף משתמש אחר לא רואה את הריבוע הזה בפרופיל שלך (הפלאגין
+ *    בצד השרת מחזיר נתונים רק למי ש-socket.uid שלו תואם, ראו library.js) -
+ *    זו לא רק הסתרה בעיצוב, זו אכיפה אמיתית בשרת.
+ * 3. בכל עמוד (למחובר בלבד) - אם נותרו 14 יום או פחות לחידוש (או שהתאריך
  *    כבר עבר), מציג באנר עדין בראש העמוד עם קישור ישיר לעריכת הפרופיל.
  *    ניתן "לדחות" את הבאנר להיום בלבד - הוא יופיע שוב מחר עד שהתאריך יעודכן.
+ *
+ * הערה על סעיף 2: ה-selector שמאתר את "איפה נמצאים ריבועי המוניטין" הוא
+ * best-effort (כמה אפשרויות נפוצות ב-NodeBB) - כי אין לי גישה לעיצוב
+ * בפועל של הפורום שלכם. אם הריבוע לא מופיע אחרי ההתקנה, פתחו קונסולת
+ * מפתחים (F12) בעמוד הפרופיל - אם מודפסת שם אזהרה שמתחילה
+ * ב-"[insurance-reminder] לא נמצא מקום" - צלמו את מבנה ה-HTML סביב ריבוע
+ * המוניטין (ימני-קליק על הריבוע -> Inspect) ותשלחו לי, ואכייל את
+ * ה-selector בהתאם (בדיוק כמו שכוילו הסלקטורים של שורת התגיות באשף הרכב).
  */
 (function () {
 	'use strict';
@@ -130,6 +143,90 @@
 		});
 	}
 
+	// ============ ריבוע בעמוד הפרופיל הציבורי /user/<slug> ============
+
+	var STAT_ID = 'insurance-reminder-stat';
+
+	function onProfilePage() {
+		try {
+			return !!(window.ajaxify && ajaxify.data && ajaxify.data.template && ajaxify.data.template.name === 'account/profile');
+		} catch (e) {
+			return /\/user\/[^/]+\/?(\?.*)?$/.test(location.pathname) && !/\/edit\/?$/.test(location.pathname);
+		}
+	}
+
+	// מציג את הריבוע רק כשזה הפרופיל של עצמך (לא כשגולשים בפרופיל של מישהו
+	// אחר) - הגנה כפולה: גם ויזואלית כאן, וגם אמיתית בשרת (socket.uid).
+	function isOwnProfile() {
+		try {
+			return !!(window.ajaxify && ajaxify.data && window.app && app.user && Number(ajaxify.data.uid) === Number(app.user.uid));
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// מחפש איפה NodeBB מציג את ריבועי המוניטין/פוסטים הקיימים בעמוד הפרופיל,
+	// כדי להוסיף ריבוע נוסף באותו מקום/סגנון. כמה אפשרויות נפוצות - הראשונה
+	// שנמצאת מנצחת. אם אף אחת לא מתאימה לעיצוב בפועל - ראו הערה בראש הקובץ.
+	function findStatsAnchor() {
+		var candidates = [
+			'[component="account/reputation"]',
+			'[component="account/postcount"]',
+			'[component="account/email"]',
+			'.account-sub-links',
+		];
+		for (var i = 0; i < candidates.length; i++) {
+			var el = document.querySelector(candidates[i]);
+			if (el) return el;
+		}
+		return null;
+	}
+
+	function injectProfileStat() {
+		if (!onProfilePage() || !isOwnProfile()) return;
+		if (document.getElementById(STAT_ID)) return;
+
+		var socket = getSocket();
+		if (!socket) return;
+
+		var anchor = findStatsAnchor();
+		if (!anchor) {
+			console.warn('[insurance-reminder] לא נמצא מקום להוסיף את ריבוע הביטוח בעמוד הפרופיל - ראו הערה בראש הקובץ לגבי כיול ה-selector.');
+			return;
+		}
+
+		socket.emit('plugins.insuranceReminder.status', {}, function (err, data) {
+			if (err) return;
+
+			var value, label;
+			if (!data || data.daysLeft === null || data.daysLeft === undefined) {
+				value = '-';
+				label = 'תוקף ביטוח';
+			} else {
+				value = data.daysLeft <= 0 ? 'פג' : String(data.daysLeft);
+				label = 'ימים לתוקף ביטוח';
+			}
+
+			// מעתיקים את מחלקת ה-CSS של ריבוע קיים כדי לרשת בדיוק את אותו
+			// עיצוב (גודל/מסגרת/ריווח) שכבר קיים בפרופיל, ורק מחליפים תוכן.
+			var el = document.createElement(anchor.tagName);
+			el.id = STAT_ID;
+			el.className = anchor.className;
+			el.setAttribute('component', 'account/insurance-reminder');
+
+			var strong = document.createElement('div');
+			strong.style.fontWeight = '700';
+			strong.textContent = value;
+			var span = document.createElement('div');
+			span.style.fontSize = '12px';
+			span.textContent = label;
+			el.appendChild(strong);
+			el.appendChild(span);
+
+			anchor.parentNode.insertBefore(el, anchor.nextSibling);
+		});
+	}
+
 	// ============ באנר תזכורת בכל עמוד ============
 
 	function dismissKey() {
@@ -205,6 +302,7 @@
 
 	function onPageChange() {
 		injectCard();
+		injectProfileStat();
 		checkBanner(false);
 	}
 
