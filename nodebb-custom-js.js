@@ -42,10 +42,12 @@
 	function injectButtonStyles() {
 		if (document.getElementById(BUTTON_STYLE_ID)) return;
 		var css = ''
+			// שכבת ה-box-shadow הראשונה היא הילה עדינה וקבועה (תמיד קיימת, לא
+			// מהבהבת) שעוזרת לכפתור לבלוט מהרקע; השנייה היא הטבעת המהבהבת.
 			+ '@keyframes car-wizard-pulse{'
-			+ '0%{box-shadow:0 0 0 0 rgba(61,82,69,.45);}'
-			+ '70%{box-shadow:0 0 0 5px rgba(61,82,69,0);}'
-			+ '100%{box-shadow:0 0 0 0 rgba(61,82,69,0);}'
+			+ '0%{box-shadow:0 0 7px 1px rgba(61,82,69,.4),0 0 0 0 rgba(61,82,69,.45);}'
+			+ '70%{box-shadow:0 0 7px 1px rgba(61,82,69,.4),0 0 0 5px rgba(61,82,69,0);}'
+			+ '100%{box-shadow:0 0 7px 1px rgba(61,82,69,.4),0 0 0 0 rgba(61,82,69,0);}'
 			+ '}'
 			+ '.car-wizard-tag-btn{display:inline-block;padding:4px 12px;border:1px solid #b9cdb9;'
 			+ 'border-radius:999px;background:#eef2ec;color:#3d5245;font-size:12px;font-weight:500;'
