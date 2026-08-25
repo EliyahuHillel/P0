@@ -1,0 +1,208 @@
+<style>
+    /* הגדרת משתנים ועיצוב ספציפי רק לווידג'ט העליון כדי למנוע התנגשויות */
+    #top-hero-widget {
+        --logo-red: #E62227; /* האדום מהלוגו */
+        --logo-blue: #0B1C48; /* הכחול מהלוגו */
+
+        --main-bg: #f1f3f5;
+        --card-bg: #ffffff;
+        --text-main: var(--logo-blue); /* הכתב הראשי בכחול הלוגו */
+        --text-muted: #7f8c8d;
+        --card-shadow: 0 4px 15px rgba(0,0,0,0.05);
+
+        display: none;
+        width: 100%;
+        background-color: var(--main-bg);
+        background-image: none;
+
+        /* צמצום הרווח העליון - 15 פיקסלים למעלה, 50 למטה */
+        padding: 15px 0 30px 0;
+        /* משיכה קלה כלפי מעלה כדי לבטל את הרווח המובנה של המערכת */
+        margin-top: 30px;
+
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        box-shadow: inset 0 0 50px rgba(0,0,0,0.02);
+        border-bottom: 1px solid #e2e8f0;
+        direction: rtl;
+    }
+
+    #top-hero-widget .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; text-align: center; }
+    #top-hero-widget h2 { color: var(--text-main); font-size: 2.5rem; margin-bottom: 10px; font-weight: 800; }
+    #top-hero-widget .subtitle { color: var(--text-muted); font-size: 1.8rem; margin-bottom: 40px; font-weight: 700; }
+
+    #top-hero-widget .action-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
+    #top-hero-widget .secondary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; }
+
+    #top-hero-widget .action-card {
+        background: var(--card-bg);
+        border: 1px solid #eee;
+        border-top: 5px solid var(--logo-red); /* הפס העליון בצבע אדום לוגו */
+        border-radius: 15px;
+        padding: 25px 15px;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        min-height: 160px;
+        box-sizing: border-box;
+        color: var(--text-main);
+        cursor: pointer;
+        box-shadow: var(--card-shadow);
+        text-align: right;
+    }
+
+    #top-hero-widget .action-card:hover {
+        transform: translateY(-5px) scale(1.02); /* עולה למעלה וגדל מעט */
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border-color: #ddd;
+        border-top-color: var(--logo-red);
+    }
+
+    #top-hero-widget .action-card:has(.inline-link:hover),
+    #top-hero-widget .no-hover:hover {
+        transform: translateY(-2px) scale(1.01);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    #top-hero-widget .small-card {
+        min-height: 90px;
+        padding: 15px;
+        border-top: 4px solid var(--logo-red); /* פס עליון בצבע אדום לוגו לכרטיסיות הקטנות */
+    }
+    #top-hero-widget .card-title { font-size: 1.4rem; font-weight: 800; margin-bottom: 10px; display: block; color: var(--text-main); }
+    #top-hero-widget .small-card .card-title { font-size: 1.1rem; margin-bottom: 5px; }
+    #top-hero-widget .card-desc { color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; }
+
+    #top-hero-widget .inline-link { display: inline-block; margin-top: 10px; color: var(--logo-red); text-decoration: none; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+    #top-hero-widget .inline-link:hover { text-decoration: underline; opacity: 0.8; }
+
+    #top-hero-widget .logged-in,
+    #top-hero-widget .logged-out { display: none; }
+
+    /* =========================================
+       רספונסיביות - התאמה מושלמת למסכים שונים
+       ========================================= */
+    /* מסכי מחשב קטנים וטאבלטים לרוחב */
+    @media (max-width: 1024px) {
+        #top-hero-widget .action-grid { grid-template-columns: repeat(2, 1fr); }
+        #top-hero-widget .secondary-grid { grid-template-columns: repeat(3, 1fr); }
+        #top-hero-widget h2 { font-size: 2.2rem; }
+        #top-hero-widget .subtitle { font-size: 1.6rem; }
+    }
+
+    /* טאבלטים לאורך וסמארטפונים גדולים */
+    @media (max-width: 768px) {
+        #top-hero-widget .secondary-grid { grid-template-columns: repeat(2, 1fr); }
+        #top-hero-widget h2 { font-size: 1.8rem; }
+        #top-hero-widget .subtitle { font-size: 1.4rem; margin-bottom: 25px; }
+    }
+
+    /* סמארטפונים */
+    @media (max-width: 480px) {
+        #top-hero-widget .action-grid,
+        #top-hero-widget .secondary-grid { grid-template-columns: 1fr; }
+        #top-hero-widget { padding: 30px 0; }
+    }
+</style>
+
+<section id="top-hero-widget" class="hero-widget">
+    <div class="container">
+        <h2>ברוכים הבאים לאתר רכבים זה לזה</h2>
+        <div class="subtitle">במה אפשר לעזור היום?</div>
+
+        <div class="action-grid">
+            <div class="action-card">
+                <span class="card-title">פתיחת נושא חדש</span>
+                <div class="card-desc">
+                    כאן ניתן להתייעץ על טיפולים, אחזקה ותקלות ברכבכם.
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+                    <button type="button" onclick="window.location.href='/compose?cid=84';" style="display:block;width:100%;padding:10px 14px;border:none;border-radius:10px;background:var(--logo-red);color:#fff;font-size:0.95rem;font-weight:800;cursor:pointer;font-family:inherit;">פתיחת נושא חדש</button>
+                    <button type="button" onclick="window.openCarWizard && window.openCarWizard();" style="display:block;width:100%;padding:10px 14px;border:none;border-radius:10px;background:var(--logo-blue);color:#fff;font-size:0.95rem;font-weight:800;cursor:pointer;font-family:inherit;">עזרה בקניית רכב - לחץ כאן</button>
+                </div>
+                <div class="card-desc" style="margin-top:10px;">
+                    <span onclick="document.getElementById('my-hero-widget').scrollIntoView({ behavior: 'smooth' });" class="inline-link">לקטגוריות נוספות לחץ כאן</span>
+                </div>
+            </div>
+            <div class="action-card" onclick="window.location.href='/recent';">
+                <span class="card-title">נושאים אחרונים</span>
+                <div class="card-desc">הדיונים האחרונים שפורסמו בקהילה - הישארו מעודכנים בזמן אמת.</div>
+            </div>
+            <div class="action-card" onclick="window.location.href='/search';">
+                <span class="card-title">חיפוש בפורום</span>
+                <div class="card-desc">יש לכם שאלה? חפשו במאגר הידע העצום של הקהילה ומצאו תשובות.</div>
+            </div>
+            <div class="action-card logged-in" id="top-user-card-in" onclick="window.location.href='/me/edit';">
+                <span class="card-title">החשבון שלי</span>
+                <div class="card-desc">צפיה בפוסטים, בפרטי החשבון ובהגדרות האישיות ועריכת הפרופיל האישי שלך.</div>
+            </div>
+            <div class="action-card logged-out" id="top-user-card-out" onclick="window.location.href='/register';">
+                <span class="card-title">הרשמה לקהילה</span>
+                <div class="card-desc">הצטרפו לאלפי בעלי רכבים, שתפו ידע וקבלו עזרה מהמומחים שלנו.</div>
+            </div>
+        </div>
+
+        <div class="secondary-grid">
+            <div class="action-card small-card" onclick="window.location.href='/topic/109/%D7%9E%D7%99%D7%9C%D7%95%D7%9F-%D7%9E%D7%95%D7%A9%D7%92%D7%99%D7%9D';">
+                <span class="card-title">מילון מושגים</span>
+                <div class="card-desc">המילון המלא לרכב</div>
+            </div>
+            <div class="action-card small-card" onclick="window.location.href='/topic/1900/%D7%94%D7%9E%D7%93%D7%A8%D7%99%D7%9A-%D7%9C%D7%9E%D7%A9%D7%AA%D7%9E%D7%A9-%D7%91%D7%A4%D7%95%D7%A8%D7%95%D7%9D';">
+                <span class="card-title">המדריך למשתמש</span>
+                <div class="card-desc">שימוש מיטבי בפורום</div>
+            </div>
+            <div class="action-card small-card" onclick="window.location.href='/unread';">
+                <span class="card-title">לא נקראו</span>
+                <div class="card-desc">פוסטים חדשים עבורכם</div>
+            </div>
+            <div class="action-card small-card" onclick="window.location.href='/topic/3/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%94%D7%A4%D7%95%D7%A8%D7%95%D7%9D-%D7%A7%D7%A8%D7%99%D7%90%D7%94-%D7%97%D7%95%D7%91%D7%94';">
+                <span class="card-title">תקנון</span>
+                <div class="card-desc">כללי השימוש בפורום</div>
+            </div>
+
+            <div class="action-card small-card" onclick="window.location.href='https://rechavimzelaze.ovh/contact';">
+                <span class="card-title">צור קשר</span>
+                <div class="card-desc">צור פניה למערכת</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    (function() {
+        function updateTopWidget() {
+            const widget = document.getElementById('top-hero-widget');
+            if (!widget) return;
+
+            const path = window.location.pathname;
+            const isHome = path === '/' || path === '' || path === '/categories' || path === '/categories/';
+
+            if (isHome) {
+                widget.style.display = 'block';
+                // בדיקה בטוחה אם המשתמש מחובר במערכת NodeBB
+                const loggedIn = typeof app !== 'undefined' && app.user && app.user.uid > 0;
+
+                const cardIn = document.getElementById('top-user-card-in');
+                const cardOut = document.getElementById('top-user-card-out');
+
+                if (cardIn) cardIn.style.display = loggedIn ? 'flex' : 'none';
+                if (cardOut) cardOut.style.display = loggedIn ? 'none' : 'flex';
+            } else {
+                widget.style.display = 'none';
+            }
+        }
+
+        // הפעלה ראשונית
+        updateTopWidget();
+
+        // האזנה לאירועי הניווט של NodeBB
+        if (window.jQuery) {
+            $(window).on('action:ajaxify.end', updateTopWidget);
+        }
+
+        // גיבוי נוסף למקרה שהמערכת טוענת דברים לאט
+        const observer = new MutationObserver(updateTopWidget);
+        observer.observe(document.body, { childList: true, subtree: true });
+        window.addEventListener('popstate', updateTopWidget);
+    })();
+</script>
