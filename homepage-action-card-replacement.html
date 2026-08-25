@@ -4,9 +4,13 @@
         כאן ניתן להתייעץ על טיפולים, אחזקה ותקלות ברכבכם.
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:14px;">
-        <button type="button" class="inline-link" onclick="window.location.href='/compose?cid=84';" style="padding:6px 16px;border:none;border-radius:6px;background:var(--logo-red);color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:inherit;margin-top:0;">פתיחת נושא חדש</button>
-        <button type="button" class="inline-link" onclick="window.openCarWizard && window.openCarWizard();" style="padding:6px 16px;border:none;border-radius:6px;background:var(--logo-blue);color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:inherit;margin-top:0;">עזרה בקניית רכב - לחץ כאן</button>
+        <button type="button" class="inline-link car-help-btn btn-red" onclick="window.location.href='/compose?cid=84';">פתיחת נושא חדש</button>
+        <button type="button" class="inline-link car-help-btn btn-blue" onclick="window.openCarWizard && window.openCarWizard();">עזרה בקניית רכב - לחץ כאן</button>
     </div>
+    <!-- שים לב: הכפתורים למעלה משתמשים ב-class-ים car-help-btn/btn-red/btn-blue -
+         אלה מוגדרים ב-<style> של קובץ homepage-hero-widget-full.html, לא כאן.
+         אם אתה מדביק רק את הריבוע הזה (בלי כל שאר ה-widget), צריך גם להוסיף
+         את חוקי ה-CSS האלה ל-<style> הקיים שם, אחרת הכפתורים ייראו ללא עיצוב. -->
     <div class="card-desc" style="margin-top:10px;">
         <span onclick="document.getElementById('my-hero-widget').scrollIntoView({ behavior: 'smooth' });" class="inline-link">לקטגוריות נוספות לחץ כאן</span>
     </div>
