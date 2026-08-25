@@ -76,6 +76,25 @@
     #top-hero-widget .inline-link { display: inline-block; margin-top: 10px; color: var(--logo-red); text-decoration: none; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
     #top-hero-widget .inline-link:hover { text-decoration: underline; opacity: 0.8; }
 
+    /* כפתורי מתאר עדינים (לא ממולאים) - משתלבים בעיצוב הקיים, לא בולטים מדי */
+    #top-hero-widget .car-help-btn {
+        display: inline-block;
+        padding: 5px 16px;
+        border-radius: 20px;
+        background: transparent;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        margin-top: 0;
+        text-decoration: none;
+        transition: background .2s ease, color .2s ease;
+    }
+    #top-hero-widget .car-help-btn.btn-red { border: 1px solid var(--logo-red); color: var(--logo-red); }
+    #top-hero-widget .car-help-btn.btn-red:hover { background: var(--logo-red); color: #fff; }
+    #top-hero-widget .car-help-btn.btn-blue { border: 1px solid var(--logo-blue); color: var(--logo-blue); }
+    #top-hero-widget .car-help-btn.btn-blue:hover { background: var(--logo-blue); color: #fff; }
+
     #top-hero-widget .logged-in,
     #top-hero-widget .logged-out { display: none; }
 
@@ -117,8 +136,8 @@
                     כאן ניתן להתייעץ על טיפולים, אחזקה ותקלות ברכבכם.
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:14px;">
-                    <button type="button" class="inline-link" onclick="window.location.href='/compose?cid=84';" style="padding:6px 16px;border:none;border-radius:6px;background:var(--logo-red);color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:inherit;margin-top:0;">פתיחת נושא חדש</button>
-                    <button type="button" class="inline-link" onclick="window.openCarWizard && window.openCarWizard();" style="padding:6px 16px;border:none;border-radius:6px;background:var(--logo-blue);color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:inherit;margin-top:0;">עזרה בקניית רכב - לחץ כאן</button>
+                    <button type="button" class="inline-link car-help-btn btn-red" onclick="window.location.href='/compose?cid=84';">פתיחת נושא חדש</button>
+                    <button type="button" class="inline-link car-help-btn btn-blue" onclick="window.openCarWizard && window.openCarWizard();">עזרה בקניית רכב - לחץ כאן</button>
                 </div>
                 <div class="card-desc" style="margin-top:10px;">
                     <span onclick="document.getElementById('my-hero-widget').scrollIntoView({ behavior: 'smooth' });" class="inline-link">לקטגוריות נוספות לחץ כאן</span>
