@@ -12,8 +12,10 @@
  *    "ביטוח רכב" עם שני שדות תאריך (תחילת ביטוח / תוקף עד-חידוש), שתי
  *    תיבות סימון לבחירת ערוץ התזכורת (פעמון ההתראות של הפורום / מייל -
  *    אפשר את שניהם) וכפתור שמירה, ממולאת מראש מהערכים השמורים אם יש.
- *    הכרטיסייה מוצגת לצד שדה "אודותיי" (textarea#aboutme) - משמאל לו,
- *    לא בראש העמוד.
+ *    הכרטיסייה מוצגת לצד שדה "אודותיי" (textarea#aboutme) - משמאל לו.
+ *    לא לכל המשתמשים מוצג שדה כזה, אז אם הוא לא קיים בעמוד, מוצגת לצד
+ *    פריט "שיוך חשבון חיצוני" (Google וכו') במקום; אם גם זה לא נמצא -
+ *    מוצגת בראש תוכן העמוד, כדי שהכרטיסייה תמיד תופיע למשתמש ולא תיעלם.
  * 2. בעמוד "אודות" בפרופיל (/user/<שם-משתמש>) - כשזה הפרופיל *של עצמך*
  *    בלבד - מוסיף קובייה "תוקף ביטוח" בדיוק באותו עיצוב
  *    כמו הקוביות הקיימות (מייל/עיר/מוניטין/הרכב שיש לי), מיד משמאל
@@ -42,7 +44,6 @@
 	var CARD_ID = 'insurance-reminder-card';
 	var ROW_ID = 'insurance-reminder-row';
 	var BANNER_ID = 'insurance-reminder-banner';
-	var CARD_ATTACHED_ATTR = 'data-insurance-reminder-attached';
 
 	// נבדק ואושר על ידי מנהל - עכשיו גלוי לכל המשתמשים (כל אחד רואה רק
 	// את קובייית הביטוח שלו, ראו isOwnProfile למטה + אכיפה אמיתית בשרת).
@@ -125,38 +126,58 @@
 			+ '<div class="ir-status" id="ir_status"></div>';
 	}
 
+	// לא לכל המשתמשים מוצג שדה "אודותיי" בעריכת הפרופיל (תלוי בהגדרות/
+	// הרשאות שלא נראות לנו מה-Custom JS) - אז לא ניתן להסתמך עליו בתור
+	// עוגן יחיד, כי אצל אותם משתמשים הכרטיסייה שלנו הייתה פשוט נעלמת
+	// לגמרי. מנסים כמה עוגנים אפשריים לפי סדר עדיפות, ורק אם אף אחד לא
+	// נמצא - עדיין מציגים את הכרטיסייה (בראש תוכן העמוד) במקום לוותר.
+	function findEditPageAnchor() {
+		var aboutme = document.getElementById('aboutme');
+		if (aboutme) {
+			return aboutme.closest('.mb-3') || aboutme.closest('.form-group') || aboutme.parentElement;
+		}
+		// עוגן חלופי: פריט "משוייך עם Google" (או כל שיוך חשבון חיצוני אחר,
+		// למשל /deauth/facebook) - קיים אצל משתמשים גם כשאין להם "אודותיי"
+		// מוצג, לפי דוגמת ה-HTML שנשלחה.
+		var deauthLink = document.querySelector('a[href*="/deauth/"]');
+		if (deauthLink) {
+			return deauthLink.closest('.list-group-item') || deauthLink.parentElement;
+		}
+		return null;
+	}
+
 	function injectCard() {
 		if (!onEditPage()) return;
 		if (document.getElementById(CARD_ID)) return;
 
-		var aboutme = document.getElementById('aboutme');
-		if (!aboutme) return;
-
-		// מיכל השדה של "אודותיי" - כדי לשים את הכרטיסייה שלנו לצדו, לא בראש
-		// העמוד. Bootstrap 5 (NodeBB) בד"כ עוטף שדה טופס ב-.mb-3 או .form-group.
-		var fieldWrapper = aboutme.closest('.mb-3') || aboutme.closest('.form-group') || aboutme.parentElement;
-		if (!fieldWrapper || fieldWrapper.getAttribute(CARD_ATTACHED_ATTR)) return;
-
 		var socket = getSocket();
 		if (!socket) return;
 
-		fieldWrapper.setAttribute(CARD_ATTACHED_ATTR, '1');
 		injectStyles();
-
-		// עוטפים את מיכל השדה בשורת flex, ומוסיפים את הכרטיסייה שלנו כפריט
-		// שני - בעמוד RTL זה ממקם אותה משמאל לשדה "אודותיי", בלי לגעת
-		// בתוכן/בהתנהגות של השדה המקורי עצמו.
-		var row = document.createElement('div');
-		row.id = ROW_ID;
-		fieldWrapper.parentNode.insertBefore(row, fieldWrapper);
-		row.appendChild(fieldWrapper);
-		fieldWrapper.style.flex = '1 1 320px';
 
 		var card = document.createElement('div');
 		card.id = CARD_ID;
-		card.className = 'ir-card-side';
 		card.innerHTML = buildCardHTML();
-		row.appendChild(card);
+
+		var fieldWrapper = findEditPageAnchor();
+		if (fieldWrapper) {
+			// עוטפים את מיכל העוגן בשורת flex, ומוסיפים את הכרטיסייה שלנו
+			// כפריט שני - בעמוד RTL זה ממקם אותה משמאלו, בלי לגעת בתוכן/
+			// בהתנהגות של האלמנט המקורי עצמו.
+			var row = document.createElement('div');
+			row.id = ROW_ID;
+			fieldWrapper.parentNode.insertBefore(row, fieldWrapper);
+			row.appendChild(fieldWrapper);
+			fieldWrapper.style.flex = '1 1 320px';
+			card.className = 'ir-card-side';
+			row.appendChild(card);
+		} else {
+			// לא נמצא אף עוגן מוכר - עדיף שהכרטיסייה תופיע בראש העמוד
+			// מאשר שתיעלם לגמרי אצל המשתמש הזה.
+			var content = document.getElementById('content');
+			if (!content) return;
+			content.insertBefore(card, content.firstChild);
+		}
 
 		var statusEl = card.querySelector('#ir_status');
 		var startEl = card.querySelector('#ir_start');
