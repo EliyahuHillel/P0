@@ -1,6 +1,6 @@
 {
   "name": "nodebb-plugin-insurance-reminder",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Insurance renewal reminder plugin for NodeBB - date field + notification/email reminder",
   "main": "library.js",
   "keywords": [

@@ -2,9 +2,9 @@
  * nodebb-plugin-insurance-reminder
  *
  * מה זה עושה:
- * - שומר לכל משתמש (בשרת, לא בדפדפן) שני שדות: תאריך תחילת ביטוח ותאריך
- *   חידוש ביטוח. השמירה/קריאה נעשית דרך socket.io של NodeBB עצמו
- *   (SocketPlugins.insuranceReminder.*) - אין route/API חדש, אין CORS.
+ * - שומר לכל משתמש (בשרת, לא בדפדפן) את תאריך חידוש הביטוח. השמירה/קריאה
+ *   נעשית דרך socket.io של NodeBB עצמו (SocketPlugins.insuranceReminder.*) -
+ *   אין route/API חדש, אין CORS.
  * - כל יום ב-08:00 (בזמן השרת) בודק את כל המשתמשים, ולמי שנותרו 14 יום
  *   או פחות עד תאריך החידוש (כולל תאריך שכבר עבר) - שולח תזכורת לפי
  *   ההעדפה שהמשתמש בחר בכרטיסיית "ביטוח רכב" בעריכת הפרופיל: התראת
@@ -32,15 +32,14 @@ const nconf = require.main.require('nconf');
 const SocketPlugins = require.main.require('./src/socket.io/plugins');
 
 const REMINDER_DAYS_BEFORE = 14;
-const FIELD_DATE = 'insuranceDate';
 const FIELD_RENEWAL = 'insuranceRenewalDate';
 const FIELD_LAST_NOTIFIED = 'insuranceLastNotifiedRenewal';
 // העדפות מסירה - נשלטות ע"י המשתמש עצמו מכרטיסיית "ביטוח רכב" בעריכת
 // הפרופיל. ברירת מחדל (כשהשדה עוד לא קיים ב-DB, למשל למשתמשים שהגדירו
-// תאריך לפני שהתווספה האפשרות): פעמון=כן, מייל=לא - כך שההתנהגות
-// הקודמת (רק פעמון) לא משתנה למי שכבר הגדיר תאריך.
+// תאריך לפני שהתווספה האפשרות): פעמון=כן, מייל=לא, באנר=כן.
 const FIELD_NOTIFY_BELL = 'insuranceNotifyBell';
 const FIELD_NOTIFY_EMAIL = 'insuranceNotifyEmail';
+const FIELD_SHOW_BANNER = 'insuranceShowBanner';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const plugin = {};
@@ -58,21 +57,17 @@ function registerSocketHandlers() {
 	// לא מהלקוח - אי אפשר לזייף uid של מישהו אחר).
 	SocketPlugins.insuranceReminder.save = async function (socket, data) {
 		requireLogin(socket);
-		const insuranceDate = sanitizeDate(data && data.insuranceDate);
 		const renewalDate = sanitizeDate(data && data.renewalDate);
-		if (data && data.insuranceDate && !insuranceDate) {
-			throw new Error('[[error:invalid-data]]');
-		}
 		if (data && data.renewalDate && !renewalDate) {
 			throw new Error('[[error:invalid-data]]');
 		}
 		await db.setObject(`user:${socket.uid}`, {
-			[FIELD_DATE]: insuranceDate || '',
 			[FIELD_RENEWAL]: renewalDate || '',
 			// איפוס "כבר הודעתי" - שינוי תאריך פותח מחדש את מחזור התזכורות
 			[FIELD_LAST_NOTIFIED]: '',
 			[FIELD_NOTIFY_BELL]: (data && data.notifyBell === false) ? '0' : '1',
 			[FIELD_NOTIFY_EMAIL]: (data && data.notifyEmail === true) ? '1' : '0',
+			[FIELD_SHOW_BANNER]: (data && data.showBanner === false) ? '0' : '1',
 		});
 		return { ok: true };
 	};
@@ -81,28 +76,32 @@ function registerSocketHandlers() {
 		requireLogin(socket);
 		const data = await db.getObjectFields(
 			`user:${socket.uid}`,
-			[FIELD_DATE, FIELD_RENEWAL, FIELD_NOTIFY_BELL, FIELD_NOTIFY_EMAIL]
+			[FIELD_RENEWAL, FIELD_NOTIFY_BELL, FIELD_NOTIFY_EMAIL, FIELD_SHOW_BANNER]
 		);
 		return {
-			insuranceDate: data[FIELD_DATE] || '',
 			renewalDate: data[FIELD_RENEWAL] || '',
 			notifyBell: data[FIELD_NOTIFY_BELL] !== '0',
 			notifyEmail: data[FIELD_NOTIFY_EMAIL] === '1',
+			showBanner: data[FIELD_SHOW_BANNER] !== '0',
 		};
 	};
 
-	// גרסה קלה שמחזירה רק "כמה ימים נשארו" - לשימוש הבאנר בכל עמוד,
-	// בלי לחשוף את התאריך המלא אם לא צריך.
+	// גרסה קלה שמחזירה רק "כמה ימים נשארו" (וההעדפה לגבי הבאנר) - לשימוש
+	// הבאנר בכל עמוד, בלי לחשוף את התאריך המלא אם לא צריך.
 	SocketPlugins.insuranceReminder.status = async function (socket) {
 		if (!socket.uid) {
 			return { daysLeft: null };
 		}
-		const data = await db.getObjectFields(`user:${socket.uid}`, [FIELD_RENEWAL]);
+		const data = await db.getObjectFields(`user:${socket.uid}`, [FIELD_RENEWAL, FIELD_SHOW_BANNER]);
 		const renewal = data[FIELD_RENEWAL];
 		if (!renewal) {
 			return { daysLeft: null };
 		}
-		return { daysLeft: daysUntil(renewal), renewalDate: renewal };
+		return {
+			daysLeft: daysUntil(renewal),
+			renewalDate: renewal,
+			showBanner: data[FIELD_SHOW_BANNER] !== '0',
+		};
 	};
 
 	// כלי בדיקה למנהלים בלבד - מריץ עכשיו את הבדיקה היומית (בלי לחכות ל-08:00),

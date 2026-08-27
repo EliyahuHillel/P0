@@ -9,13 +9,13 @@
  *
  * מה זה עושה:
  * 1. בעמוד "עריכת פרופיל" (/user/<שם-משתמש>/edit) - מוסיף כרטיסייה
- *    "ביטוח רכב" עם שני שדות תאריך (תחילת ביטוח / תוקף עד-חידוש), שתי
- *    תיבות סימון לבחירת ערוץ התזכורת (פעמון ההתראות של הפורום / מייל -
- *    אפשר את שניהם) וכפתור שמירה, ממולאת מראש מהערכים השמורים אם יש.
- *    הכרטיסייה מוצגת לצד שדה "אודותיי" (textarea#aboutme) - משמאל לו.
- *    לא לכל המשתמשים מוצג שדה כזה, אז אם הוא לא קיים בעמוד, מוצגת לצד
- *    פריט "שיוך חשבון חיצוני" (Google וכו') במקום; אם גם זה לא נמצא -
- *    מוצגת בראש תוכן העמוד, כדי שהכרטיסייה תמיד תופיע למשתמש ולא תיעלם.
+ *    "ביטוח רכב" עם שדה תאריך תוקף/חידוש, שלוש תיבות סימון (התראה
+ *    בפעמון ההתראות של הפורום / גם במייל / הצגת באנר תזכורת בראש
+ *    העמוד) וכפתור שמירה, ממולאת מראש מהערכים השמורים אם יש. הכרטיסייה
+ *    מוצגת תמיד מיד מתחת לפריט "שיוך חשבון חיצוני" (Google וכו') - קיים
+ *    אצל כל המשתמשים בפורום הזה; רק אם זה לא נמצא, מוצגת מתחת לשדה
+ *    "אודותיי" אם קיים, ואם גם זה לא - בראש תוכן העמוד, כדי שהכרטיסייה
+ *    תמיד תופיע למשתמש ולא תיעלם.
  * 2. בעמוד "אודות" בפרופיל (/user/<שם-משתמש>) - כשזה הפרופיל *של עצמך*
  *    בלבד - מוסיף קובייה "תוקף ביטוח" בדיוק באותו עיצוב
  *    כמו הקוביות הקיימות (מייל/עיר/מוניטין/הרכב שיש לי), מיד משמאל
@@ -42,7 +42,6 @@
 
 	var STYLE_ID = 'insurance-reminder-style';
 	var CARD_ID = 'insurance-reminder-card';
-	var ROW_ID = 'insurance-reminder-row';
 	var BANNER_ID = 'insurance-reminder-banner';
 
 	// נבדק ואושר על ידי מנהל - עכשיו גלוי לכל המשתמשים (כל אחד רואה רק
@@ -79,8 +78,6 @@
 			+ '#' + CARD_ID + ' .ir-status{font-size:12.5px;margin-top:10px;min-height:16px;}'
 			+ '#' + CARD_ID + ' .ir-status.ok{color:#4f7a3b;}'
 			+ '#' + CARD_ID + ' .ir-status.err{color:#a14444;}'
-			+ '#' + ROW_ID + '{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}'
-			+ '#' + CARD_ID + '.ir-card-side{flex:0 0 260px;max-width:260px;margin:0;}'
 			+ '.ir-stat-green{color:#2e7d32;}'
 			+ '.ir-stat-red{color:#c62828;}'
 			+ '.ir-stat-neutral{color:#867d6e;}'
@@ -115,33 +112,30 @@
 		return ''
 			+ '<h3>ביטוח רכב</h3>'
 			+ '<p class="ir-sub">מלאו את תאריך תוקף הביטוח - נזכיר לכם, שבועיים לפני שהוא פג, בדרך שתבחרו למטה.</p>'
-			+ '<div class="ir-field"><label>תאריך תחילת הביטוח הנוכחי</label><input type="date" id="ir_start"></div>'
 			+ '<div class="ir-field"><label>תאריך תוקף/חידוש הביטוח</label><input type="date" id="ir_renewal"></div>'
 			+ '<div class="ir-field">'
 			+ '<label>איך לתזכר אתכם</label>'
 			+ '<label class="ir-check"><input type="checkbox" id="ir_notify_bell" checked> התראה בפעמון ההתראות של הפורום</label>'
 			+ '<label class="ir-check"><input type="checkbox" id="ir_notify_email"> התראה גם במייל</label>'
+			+ '<label class="ir-check"><input type="checkbox" id="ir_notify_banner" checked> הצגת באנר תזכורת בראש העמוד</label>'
 			+ '</div>'
 			+ '<button type="button" class="ir-btn" id="ir_save">שמירה</button>'
 			+ '<div class="ir-status" id="ir_status"></div>';
 	}
 
-	// לא לכל המשתמשים מוצג שדה "אודותיי" בעריכת הפרופיל (תלוי בהגדרות/
-	// הרשאות שלא נראות לנו מה-Custom JS) - אז לא ניתן להסתמך עליו בתור
-	// עוגן יחיד, כי אצל אותם משתמשים הכרטיסייה שלנו הייתה פשוט נעלמת
-	// לגמרי. מנסים כמה עוגנים אפשריים לפי סדר עדיפות, ורק אם אף אחד לא
-	// נמצא - עדיין מציגים את הכרטיסייה (בראש תוכן העמוד) במקום לוותר.
+	// מוצג תמיד מיד מתחת לפריט "שיוך חשבון חיצוני" (Google וכו') - קיים
+	// אצל כל המשתמשים בפורום הזה (הרשמה מתבצעת דרך Google), ונראה יפה
+	// יותר מלהיצמד לשדה "אודותיי". אם למשתמש מסוים אין בכל זאת פריט כזה -
+	// נופלים חזרה לשדה "אודותיי" אם קיים, ואם גם זה לא - null (הקוד שקורא
+	// לפונקציה הזו יציג את הכרטיסייה בראש העמוד במקום, כדי שלא תיעלם).
 	function findEditPageAnchor() {
-		var aboutme = document.getElementById('aboutme');
-		if (aboutme) {
-			return aboutme.closest('.mb-3') || aboutme.closest('.form-group') || aboutme.parentElement;
-		}
-		// עוגן חלופי: פריט "משוייך עם Google" (או כל שיוך חשבון חיצוני אחר,
-		// למשל /deauth/facebook) - קיים אצל משתמשים גם כשאין להם "אודותיי"
-		// מוצג, לפי דוגמת ה-HTML שנשלחה.
 		var deauthLink = document.querySelector('a[href*="/deauth/"]');
 		if (deauthLink) {
 			return deauthLink.closest('.list-group-item') || deauthLink.parentElement;
+		}
+		var aboutme = document.getElementById('aboutme');
+		if (aboutme) {
+			return aboutme.closest('.mb-3') || aboutme.closest('.form-group') || aboutme.parentElement;
 		}
 		return null;
 	}
@@ -159,18 +153,10 @@
 		card.id = CARD_ID;
 		card.innerHTML = buildCardHTML();
 
-		var fieldWrapper = findEditPageAnchor();
-		if (fieldWrapper) {
-			// עוטפים את מיכל העוגן בשורת flex, ומוסיפים את הכרטיסייה שלנו
-			// כפריט שני - בעמוד RTL זה ממקם אותה משמאלו, בלי לגעת בתוכן/
-			// בהתנהגות של האלמנט המקורי עצמו.
-			var row = document.createElement('div');
-			row.id = ROW_ID;
-			fieldWrapper.parentNode.insertBefore(row, fieldWrapper);
-			row.appendChild(fieldWrapper);
-			fieldWrapper.style.flex = '1 1 320px';
-			card.className = 'ir-card-side';
-			row.appendChild(card);
+		var anchor = findEditPageAnchor();
+		if (anchor) {
+			// מוסיפים מיד אחרי העוגן ב-DOM - כלומר, מתחתיו ויזואלית.
+			anchor.parentNode.insertBefore(card, anchor.nextSibling);
 		} else {
 			// לא נמצא אף עוגן מוכר - עדיף שהכרטיסייה תופיע בראש העמוד
 			// מאשר שתיעלם לגמרי אצל המשתמש הזה.
@@ -180,19 +166,19 @@
 		}
 
 		var statusEl = card.querySelector('#ir_status');
-		var startEl = card.querySelector('#ir_start');
 		var renewalEl = card.querySelector('#ir_renewal');
 		var notifyBellEl = card.querySelector('#ir_notify_bell');
 		var notifyEmailEl = card.querySelector('#ir_notify_email');
+		var notifyBannerEl = card.querySelector('#ir_notify_banner');
 		var saveBtn = card.querySelector('#ir_save');
 
 		socket.emit('plugins.insuranceReminder.get', {}, function (err, data) {
 			if (err) return;
-			if (data && data.insuranceDate) startEl.value = data.insuranceDate;
 			if (data && data.renewalDate) renewalEl.value = data.renewalDate;
 			if (data) {
 				notifyBellEl.checked = data.notifyBell !== false;
 				notifyEmailEl.checked = data.notifyEmail === true;
+				notifyBannerEl.checked = data.showBanner !== false;
 			}
 		});
 
@@ -201,10 +187,10 @@
 			statusEl.className = 'ir-status';
 			statusEl.textContent = 'שומר...';
 			socket.emit('plugins.insuranceReminder.save', {
-				insuranceDate: startEl.value || '',
 				renewalDate: renewalEl.value || '',
 				notifyBell: notifyBellEl.checked,
 				notifyEmail: notifyEmailEl.checked,
+				showBanner: notifyBannerEl.checked,
 			}, function (err) {
 				saveBtn.disabled = false;
 				if (err) {
@@ -384,7 +370,7 @@
 		var socket = getSocket();
 		if (!socket || !(window.app && app.user && app.user.uid)) return;
 		socket.emit('plugins.insuranceReminder.status', {}, function (err, data) {
-			if (err || !data || data.daysLeft === null || data.daysLeft === undefined) {
+			if (err || !data || data.daysLeft === null || data.daysLeft === undefined || data.showBanner === false) {
 				removeBanner();
 				return;
 			}
