@@ -82,8 +82,6 @@
 			+ '#' + CARD_ID + ' .ir-status.err{color:#a14444;}'
 			+ '#' + ROW_ID + '{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}'
 			+ '#' + CARD_ID + '.ir-card-side{flex:0 0 260px;max-width:260px;margin:0;}'
-			+ '.ir-stat-row{display:flex;gap:14px;align-items:stretch;}'
-			+ '.ir-stat-row > *{flex:1;min-width:0;}'
 			+ '.ir-stat-green{color:#2e7d32;}'
 			+ '.ir-stat-red{color:#c62828;}'
 			+ '.ir-stat-neutral{color:#867d6e;}'
@@ -283,15 +281,25 @@
 				+ '<span class="stat-label text-xs fw-semibold"><span><i class="text-muted fa-solid fa-shield-halved"></i> תוקף ביטוח</span></span>'
 				+ '<span class="text-center fs-6 ff-secondary ' + colorClass + '">' + value + '</span>';
 
-			// עוטפים את קוביית הרכב ואת הקובייה שלנו בשורת flex משלנו, עם
-			// רווח (gap) מפורש ביניהן - כי אם פשוט משתילים אותה כאחות של
-			// קוביית הרכב, לפעמים המיכל המקורי הוא עמודה (לא שורה) והתוצאה
-			// היא שתי הקוביות "מודבקות" זו לזו בלי הפרדה, כמו שקרה בבדיקה.
-			var row = document.createElement('div');
-			row.className = 'ir-stat-row';
-			anchor.parentNode.insertBefore(row, anchor);
-			row.appendChild(anchor);
-			row.appendChild(el);
+			// קוביית הרכב יושבת בתוך מיכל-תא צר וקבוע-רוחב משלה בתוך הרשת
+			// החיצונית (grid) - זו הסיבה שגרסה קודמת של הקוד יצרה באג: כל
+			// דבר שמושתל *בתוך* אותו מיכל (בין אם כתוכן נערם או כשורת flex
+			// פנימית) נדחס יחד עם קוביית הרכב לתוך אותו רוחב-תא בודד, במקום
+			// לקבל רוחב תא משלו. הפתרון: משכפלים את מיכל-התא עצמו (בלי
+			// התוכן שלו) ומוסיפים אותו כתא *נפרד וחדש* ברשת החיצונית, מיד
+			// אחרי תא הרכב - כך הקובייה שלנו מקבלת בדיוק את אותו רוחב/ריווח
+			// כמו כל קובייה אחרת בעמוד, ותא הרכב חוזר לגודלו המלא המקורי.
+			var cell = anchor.parentNode;
+			var grid = cell && cell.parentNode;
+			if (grid && cell !== grid) {
+				var newCell = cell.cloneNode(false);
+				newCell.removeAttribute('id');
+				newCell.appendChild(el);
+				grid.insertBefore(newCell, cell.nextSibling);
+			} else {
+				// נפילה בטוחה אם המבנה בפועל שונה מהצפוי
+				anchor.parentNode.insertBefore(el, anchor.nextSibling);
+			}
 		});
 	}
 
