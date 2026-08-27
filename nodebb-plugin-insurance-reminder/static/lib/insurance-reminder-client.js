@@ -9,9 +9,11 @@
  *
  * מה זה עושה:
  * 1. בעמוד "עריכת פרופיל" (/user/<שם-משתמש>/edit) - מוסיף כרטיסייה
- *    "ביטוח רכב" עם שני שדות תאריך (תחילת ביטוח / תוקף עד-חידוש) וכפתור
- *    שמירה, ממולאת מראש מהערכים השמורים אם יש. הכרטיסייה מוצגת לצד שדה
- *    "אודותיי" (textarea#aboutme) - משמאל לו, לא בראש העמוד.
+ *    "ביטוח רכב" עם שני שדות תאריך (תחילת ביטוח / תוקף עד-חידוש), שתי
+ *    תיבות סימון לבחירת ערוץ התזכורת (פעמון ההתראות של הפורום / מייל -
+ *    אפשר את שניהם) וכפתור שמירה, ממולאת מראש מהערכים השמורים אם יש.
+ *    הכרטיסייה מוצגת לצד שדה "אודותיי" (textarea#aboutme) - משמאל לו,
+ *    לא בראש העמוד.
  * 2. בעמוד "אודות" בפרופיל (/user/<שם-משתמש>) - כשזה הפרופיל *של עצמך*
  *    בלבד (וכרגע גם רק למנהלים - ראו ABOUT_STAT_ADMIN_ONLY למטה, בדומה
  *    לבטא של אשף הרכב) - מוסיף קובייה "תוקף ביטוח" בדיוק באותו עיצוב
@@ -23,7 +25,9 @@
  *    בעיצוב, זו אכיפה אמיתית בשרת.
  * 3. בכל עמוד (למחובר בלבד) - אם נותרו 14 יום או פחות לחידוש (או שהתאריך
  *    כבר עבר), מציג באנר עדין בראש העמוד עם קישור ישיר לעריכת הפרופיל.
- *    ניתן "לדחות" את הבאנר להיום בלבד - הוא יופיע שוב מחר עד שהתאריך יעודכן.
+ *    ניתן "לדחות" את הבאנר - הדחייה נשמרת רק לביקור הנוכחי בפורום (טאב/
+ *    חלון זה, sessionStorage) - בכניסה הבאה לפורום (או בטאב חדש) הבאנר
+ *    יופיע שוב, כל עוד התאריך לא עודכן.
  *
  * הערה על סעיף 1+2: ה-selector-ים שמאתרים "איפה שמים את זה" הם best-effort
  * לפי דוגמאות HTML קונקרטיות שנשלחו לי מהפורום עצמו. אם משהו עדיין לא
@@ -70,11 +74,16 @@
 			+ '#' + CARD_ID + ' .ir-btn{padding:11px 22px;border-radius:10px;border:none;font-family:inherit;'
 			+ 'font-size:14px;font-weight:600;cursor:pointer;background:#4f6b57;color:#fff;}'
 			+ '#' + CARD_ID + ' .ir-btn:disabled{background:#a89f8f;cursor:default;}'
+			+ '#' + CARD_ID + ' .ir-check{display:flex;align-items:center;gap:8px;font-weight:400;'
+			+ 'margin-bottom:6px;cursor:pointer;}'
+			+ '#' + CARD_ID + ' .ir-check input{width:auto;margin:0;}'
 			+ '#' + CARD_ID + ' .ir-status{font-size:12.5px;margin-top:10px;min-height:16px;}'
 			+ '#' + CARD_ID + ' .ir-status.ok{color:#4f7a3b;}'
 			+ '#' + CARD_ID + ' .ir-status.err{color:#a14444;}'
 			+ '#' + ROW_ID + '{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}'
 			+ '#' + CARD_ID + '.ir-card-side{flex:0 0 260px;max-width:260px;margin:0;}'
+			+ '.ir-stat-row{display:flex;gap:14px;align-items:stretch;}'
+			+ '.ir-stat-row > *{flex:1;min-width:0;}'
 			+ '.ir-stat-green{color:#2e7d32;}'
 			+ '.ir-stat-red{color:#c62828;}'
 			+ '.ir-stat-neutral{color:#867d6e;}'
@@ -108,9 +117,14 @@
 	function buildCardHTML() {
 		return ''
 			+ '<h3>ביטוח רכב</h3>'
-			+ '<p class="ir-sub">מלאו את תאריך תוקף הביטוח - נזכיר לכם כאן באתר וגם בהתראה, שבועיים לפני שהוא פג.</p>'
+			+ '<p class="ir-sub">מלאו את תאריך תוקף הביטוח - נזכיר לכם, שבועיים לפני שהוא פג, בדרך שתבחרו למטה.</p>'
 			+ '<div class="ir-field"><label>תאריך תחילת הביטוח הנוכחי</label><input type="date" id="ir_start"></div>'
 			+ '<div class="ir-field"><label>תאריך תוקף/חידוש הביטוח</label><input type="date" id="ir_renewal"></div>'
+			+ '<div class="ir-field">'
+			+ '<label>איך לתזכר אתכם</label>'
+			+ '<label class="ir-check"><input type="checkbox" id="ir_notify_bell" checked> התראה בפעמון ההתראות של הפורום</label>'
+			+ '<label class="ir-check"><input type="checkbox" id="ir_notify_email"> התראה גם במייל</label>'
+			+ '</div>'
 			+ '<button type="button" class="ir-btn" id="ir_save">שמירה</button>'
 			+ '<div class="ir-status" id="ir_status"></div>';
 	}
@@ -151,12 +165,18 @@
 		var statusEl = card.querySelector('#ir_status');
 		var startEl = card.querySelector('#ir_start');
 		var renewalEl = card.querySelector('#ir_renewal');
+		var notifyBellEl = card.querySelector('#ir_notify_bell');
+		var notifyEmailEl = card.querySelector('#ir_notify_email');
 		var saveBtn = card.querySelector('#ir_save');
 
 		socket.emit('plugins.insuranceReminder.get', {}, function (err, data) {
 			if (err) return;
 			if (data && data.insuranceDate) startEl.value = data.insuranceDate;
 			if (data && data.renewalDate) renewalEl.value = data.renewalDate;
+			if (data) {
+				notifyBellEl.checked = data.notifyBell !== false;
+				notifyEmailEl.checked = data.notifyEmail === true;
+			}
 		});
 
 		saveBtn.addEventListener('click', function () {
@@ -166,6 +186,8 @@
 			socket.emit('plugins.insuranceReminder.save', {
 				insuranceDate: startEl.value || '',
 				renewalDate: renewalEl.value || '',
+				notifyBell: notifyBellEl.checked,
+				notifyEmail: notifyEmailEl.checked,
 			}, function (err) {
 				saveBtn.disabled = false;
 				if (err) {
@@ -261,29 +283,38 @@
 				+ '<span class="stat-label text-xs fw-semibold"><span><i class="text-muted fa-solid fa-shield-halved"></i> תוקף ביטוח</span></span>'
 				+ '<span class="text-center fs-6 ff-secondary ' + colorClass + '">' + value + '</span>';
 
-			anchor.parentNode.insertBefore(el, anchor.nextSibling);
+			// עוטפים את קוביית הרכב ואת הקובייה שלנו בשורת flex משלנו, עם
+			// רווח (gap) מפורש ביניהן - כי אם פשוט משתילים אותה כאחות של
+			// קוביית הרכב, לפעמים המיכל המקורי הוא עמודה (לא שורה) והתוצאה
+			// היא שתי הקוביות "מודבקות" זו לזו בלי הפרדה, כמו שקרה בבדיקה.
+			var row = document.createElement('div');
+			row.className = 'ir-stat-row';
+			anchor.parentNode.insertBefore(row, anchor);
+			row.appendChild(anchor);
+			row.appendChild(el);
 		});
 	}
 
 	// ============ באנר תזכורת בכל עמוד ============
 
-	function dismissKey() {
-		var today = new Date();
-		return 'insurance_reminder_dismissed_' + today.toISOString().slice(0, 10);
-	}
+	// שימוש ב-sessionStorage (לא localStorage) בכוונה: "לא עכשיו" משתיק את
+	// הבאנר רק לביקור הנוכחי בפורום (הטאב/החלון הזה) - ברגע שסוגרים את
+	// הדפדפן/הטאב ונכנסים לפורום מחדש, הבאנר יופיע שוב (אם עדיין רלוונטי).
+	// זה לא תלוי בתאריך קלנדרי כמו localStorage, ולא "משתיק לצמיתות".
+	var DISMISS_KEY = 'insurance_reminder_dismissed';
 
-	function isDismissedToday() {
+	function isDismissedThisSession() {
 		try {
-			return localStorage.getItem(dismissKey()) === '1';
+			return sessionStorage.getItem(DISMISS_KEY) === '1';
 		} catch (e) {
 			return false;
 		}
 	}
 
-	function dismissToday() {
+	function dismissThisSession() {
 		try {
-			localStorage.setItem(dismissKey(), '1');
-		} catch (e) { /* localStorage לא זמין - פשוט לא נשמר, לא קריטי */ }
+			sessionStorage.setItem(DISMISS_KEY, '1');
+		} catch (e) { /* sessionStorage לא זמין - פשוט לא נשמר, לא קריטי */ }
 		removeBanner();
 	}
 
@@ -310,7 +341,7 @@
 
 		document.body.insertBefore(banner, document.body.firstChild);
 
-		banner.querySelector('#ir_banner_dismiss').addEventListener('click', dismissToday);
+		banner.querySelector('#ir_banner_dismiss').addEventListener('click', dismissThisSession);
 		banner.querySelector('#ir_banner_link').addEventListener('click', function (e) {
 			e.preventDefault();
 			if (window.app && typeof app.user !== 'undefined' && app.user.userslug && window.ajaxify) {
@@ -322,7 +353,7 @@
 	}
 
 	function checkBanner(force) {
-		if (!force && isDismissedToday()) return;
+		if (!force && isDismissedThisSession()) return;
 		var socket = getSocket();
 		if (!socket || !(window.app && app.user && app.user.uid)) return;
 		socket.emit('plugins.insuranceReminder.status', {}, function (err, data) {
@@ -331,7 +362,7 @@
 				return;
 			}
 			if (data.daysLeft <= 14) {
-				if (force || !isDismissedToday()) showBanner(data.daysLeft);
+				if (force || !isDismissedThisSession()) showBanner(data.daysLeft);
 			} else {
 				removeBanner();
 			}

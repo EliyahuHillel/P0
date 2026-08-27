@@ -6,9 +6,10 @@
  *   חידוש ביטוח. השמירה/קריאה נעשית דרך socket.io של NodeBB עצמו
  *   (SocketPlugins.insuranceReminder.*) - אין route/API חדש, אין CORS.
  * - כל יום ב-08:00 (בזמן השרת) בודק את כל המשתמשים, ולמי שנותרו 14 יום
- *   או פחות עד תאריך החידוש (כולל תאריך שכבר עבר) - שולח התראת NodeBB
- *   אמיתית (פעמון, ובהתאם להגדרות המשתמש - גם מייל/דיגסט דרך המנגנון
- *   המובנה של NodeBB, בלי קוד נוסף מהפלאגין).
+ *   או פחות עד תאריך החידוש (כולל תאריך שכבר עבר) - שולח תזכורת לפי
+ *   ההעדפה שהמשתמש בחר בכרטיסיית "ביטוח רכב" בעריכת הפרופיל: התראת
+ *   NodeBB אמיתית (פעמון), מייל ישיר, שניהם, או כלום - ראו
+ *   FIELD_NOTIFY_BELL/FIELD_NOTIFY_EMAIL למטה (ברירת מחדל: פעמון בלבד).
  * - לא שולח התראה כפולה על אותו תאריך חידוש - נשמר "עד איזה תאריך כבר
  *   הודעתי" (FIELD_LAST_NOTIFIED), ומתאפס אוטומטית כשהמשתמש משנה תאריך.
  *
@@ -26,12 +27,20 @@ const cron = require('node-cron');
 const db = require.main.require('./src/database');
 const user = require.main.require('./src/user');
 const notifications = require.main.require('./src/notifications');
+const emailer = require.main.require('./src/emailer');
+const nconf = require.main.require('nconf');
 const SocketPlugins = require.main.require('./src/socket.io/plugins');
 
 const REMINDER_DAYS_BEFORE = 14;
 const FIELD_DATE = 'insuranceDate';
 const FIELD_RENEWAL = 'insuranceRenewalDate';
 const FIELD_LAST_NOTIFIED = 'insuranceLastNotifiedRenewal';
+// העדפות מסירה - נשלטות ע"י המשתמש עצמו מכרטיסיית "ביטוח רכב" בעריכת
+// הפרופיל. ברירת מחדל (כשהשדה עוד לא קיים ב-DB, למשל למשתמשים שהגדירו
+// תאריך לפני שהתווספה האפשרות): פעמון=כן, מייל=לא - כך שההתנהגות
+// הקודמת (רק פעמון) לא משתנה למי שכבר הגדיר תאריך.
+const FIELD_NOTIFY_BELL = 'insuranceNotifyBell';
+const FIELD_NOTIFY_EMAIL = 'insuranceNotifyEmail';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const plugin = {};
@@ -62,16 +71,23 @@ function registerSocketHandlers() {
 			[FIELD_RENEWAL]: renewalDate || '',
 			// איפוס "כבר הודעתי" - שינוי תאריך פותח מחדש את מחזור התזכורות
 			[FIELD_LAST_NOTIFIED]: '',
+			[FIELD_NOTIFY_BELL]: (data && data.notifyBell === false) ? '0' : '1',
+			[FIELD_NOTIFY_EMAIL]: (data && data.notifyEmail === true) ? '1' : '0',
 		});
 		return { ok: true };
 	};
 
 	SocketPlugins.insuranceReminder.get = async function (socket) {
 		requireLogin(socket);
-		const data = await db.getObjectFields(`user:${socket.uid}`, [FIELD_DATE, FIELD_RENEWAL]);
+		const data = await db.getObjectFields(
+			`user:${socket.uid}`,
+			[FIELD_DATE, FIELD_RENEWAL, FIELD_NOTIFY_BELL, FIELD_NOTIFY_EMAIL]
+		);
 		return {
 			insuranceDate: data[FIELD_DATE] || '',
 			renewalDate: data[FIELD_RENEWAL] || '',
+			notifyBell: data[FIELD_NOTIFY_BELL] !== '0',
+			notifyEmail: data[FIELD_NOTIFY_EMAIL] === '1',
 		};
 	};
 
@@ -155,22 +171,53 @@ async function checkUser(uid) {
 }
 
 async function sendReminder(uid, renewalDate, daysLeft) {
-	const userslug = await user.getUserField(uid, 'userslug');
+	const [userslug, prefs] = await Promise.all([
+		user.getUserField(uid, 'userslug'),
+		db.getObjectFields(`user:${uid}`, [FIELD_NOTIFY_BELL, FIELD_NOTIFY_EMAIL]),
+	]);
+	// ברירת מחדל: פעמון כן, מייל לא (ראו הערה ליד ההגדרות של השדות למעלה)
+	const notifyBell = prefs[FIELD_NOTIFY_BELL] !== '0';
+	const notifyEmail = prefs[FIELD_NOTIFY_EMAIL] === '1';
+	if (!notifyBell && !notifyEmail) return;
+
 	const bodyShort = daysLeft < 0
 		? 'תוקף ביטוח הרכב שלך פג - חדשו בהקדם האפשרי'
 		: daysLeft === 0
 			? 'ביטוח הרכב שלך פג היום - חדשו עכשיו'
 			: `נותרו ${daysLeft} ימים לחידוש ביטוח הרכב שלך`;
+	const path = userslug ? `/user/${userslug}/edit` : '/';
 
 	const notification = await notifications.create({
 		type: 'insurance-reminder',
 		// nid כולל את תאריך החידוש - כך שאם המשתמש משנה תאריך, זו התראה "חדשה"
 		nid: `insurance-reminder:${uid}:${renewalDate}`,
 		bodyShort,
-		path: userslug ? `/user/${userslug}/edit` : '/',
+		path,
 		from: uid,
 	});
-	await notifications.push(notification, [uid]);
+
+	if (notifyBell) {
+		await notifications.push(notification, [uid]);
+	}
+
+	// שולחים מייל ישירות (בלי תלות בהגדרות ה"התראות" הכלליות של NodeBB,
+	// כי insurance-reminder הוא סוג התראה מותאם אישית שלא רשום שם) - רק
+	// אם המשתמש סימן את תיבת "גם במייל" בכרטיסיית עריכת הפרופיל.
+	if (notifyEmail) {
+		try {
+			await emailer.send('notification', uid, {
+				path: notification.path,
+				notification_url: nconf.get('url') + notification.path,
+				subject: bodyShort,
+				intro: bodyShort,
+				body: '',
+				notification,
+				showUnsubscribe: false,
+			});
+		} catch (err) {
+			console.error('[nodebb-plugin-insurance-reminder] שליחת מייל תזכורת נכשלה', err);
+		}
+	}
 }
 
 module.exports = plugin;
