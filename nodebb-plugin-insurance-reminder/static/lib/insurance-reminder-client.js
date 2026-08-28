@@ -125,12 +125,14 @@
 
 	// מוצג תמיד מיד מתחת לפריט "שיוך חשבון חיצוני" (Google וכו') - קיים
 	// אצל כל המשתמשים בפורום הזה (הרשמה מתבצעת דרך Google) - בלי נפילה
-	// לעוגן אחר ובלי הופעה בראש העמוד. אם העוגן עדיין לא נמצא ב-DOM ברגע
-	// שהקוד רץ (למשל כי חלק מהעמוד עוד נטען) - מנסים שוב כמה פעמים ברצף
-	// לפני שמוותרים, כדי לא ליפול על "לא נמצא" בגלל תזמון בלבד.
+	// לעוגן אחר ובלי הופעה בראש העמוד. שני מצבים אפשריים לאותו פריט:
+	// /deauth/google (מי שכבר משויך - לביטול שיוך) או /auth/google (מי
+	// שעדיין לא משויך - לשיוך) - צריך לתפוס את שניהם. אם העוגן עדיין לא
+	// נמצא ב-DOM ברגע שהקוד רץ (למשל כי חלק מהעמוד עוד נטען) - מנסים שוב
+	// כמה פעמים ברצף לפני שמוותרים, כדי לא ליפול על "לא נמצא" בגלל תזמון.
 	function findDeauthAnchor() {
-		var deauthLink = document.querySelector('a[href*="/deauth/"]');
-		return deauthLink && (deauthLink.closest('.list-group-item') || deauthLink.parentElement);
+		var link = document.querySelector('a[href*="/deauth/"]') || document.querySelector('a[href*="/auth/"]');
+		return link && (link.closest('.list-group-item') || link.parentElement);
 	}
 
 	function findEditPageAnchorWithRetry(callback, attemptsLeft) {
