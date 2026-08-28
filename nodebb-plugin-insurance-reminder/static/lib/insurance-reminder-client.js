@@ -13,9 +13,9 @@
  *    בפעמון ההתראות של הפורום / גם במייל / הצגת באנר תזכורת בראש
  *    העמוד) וכפתור שמירה, ממולאת מראש מהערכים השמורים אם יש. הכרטיסייה
  *    מוצגת תמיד מיד מתחת לפריט "שיוך חשבון חיצוני" (Google וכו') - קיים
- *    אצל כל המשתמשים בפורום הזה; רק אם זה לא נמצא, מוצגת מתחת לשדה
- *    "אודותיי" אם קיים, ואם גם זה לא - בראש תוכן העמוד, כדי שהכרטיסייה
- *    תמיד תופיע למשתמש ולא תיעלם.
+ *    אצל כל המשתמשים בפורום הזה, ולא בשום מקום אחר (לא ליד "אודותיי",
+ *    לא בראש העמוד). אם העוגן הזה עדיין לא נמצא ברגע שהקוד רץ (למשל
+ *    חלק מהעמוד עוד נטען), מנסים שוב כמה פעמים ברצף לפני שמוותרים.
  * 2. בעמוד "אודות" בפרופיל (/user/<שם-משתמש>) - כשזה הפרופיל *של עצמך*
  *    בלבד - מוסיף קובייה "תוקף ביטוח" בדיוק באותו עיצוב
  *    כמו הקוביות הקיימות (מייל/עיר/מוניטין/הרכב שיש לי), מיד משמאל
@@ -124,46 +124,39 @@
 	}
 
 	// מוצג תמיד מיד מתחת לפריט "שיוך חשבון חיצוני" (Google וכו') - קיים
-	// אצל כל המשתמשים בפורום הזה (הרשמה מתבצעת דרך Google), ונראה יפה
-	// יותר מלהיצמד לשדה "אודותיי". אם למשתמש מסוים אין בכל זאת פריט כזה -
-	// נופלים חזרה לשדה "אודותיי" אם קיים, ואם גם זה לא - null (הקוד שקורא
-	// לפונקציה הזו יציג את הכרטיסייה בראש העמוד במקום, כדי שלא תיעלם).
-	function findEditPageAnchor() {
+	// אצל כל המשתמשים בפורום הזה (הרשמה מתבצעת דרך Google) - בלי נפילה
+	// לעוגן אחר ובלי הופעה בראש העמוד. אם העוגן עדיין לא נמצא ב-DOM ברגע
+	// שהקוד רץ (למשל כי חלק מהעמוד עוד נטען) - מנסים שוב כמה פעמים ברצף
+	// לפני שמוותרים, כדי לא ליפול על "לא נמצא" בגלל תזמון בלבד.
+	function findDeauthAnchor() {
 		var deauthLink = document.querySelector('a[href*="/deauth/"]');
-		if (deauthLink) {
-			return deauthLink.closest('.list-group-item') || deauthLink.parentElement;
-		}
-		var aboutme = document.getElementById('aboutme');
-		if (aboutme) {
-			return aboutme.closest('.mb-3') || aboutme.closest('.form-group') || aboutme.parentElement;
-		}
-		return null;
+		return deauthLink && (deauthLink.closest('.list-group-item') || deauthLink.parentElement);
 	}
 
-	function injectCard() {
-		if (!onEditPage()) return;
-		if (document.getElementById(CARD_ID)) return;
+	function findEditPageAnchorWithRetry(callback, attemptsLeft) {
+		if (attemptsLeft === undefined) attemptsLeft = 20; // עד כ-6 שניות בסה"כ
+		if (!onEditPage()) {
+			callback(null); // עזבו את העמוד - מפסיקים לנסות
+			return;
+		}
+		var anchor = findDeauthAnchor();
+		if (anchor) {
+			callback(anchor);
+			return;
+		}
+		if (attemptsLeft <= 0) {
+			callback(null);
+			return;
+		}
+		setTimeout(function () {
+			findEditPageAnchorWithRetry(callback, attemptsLeft - 1);
+		}, 300);
+	}
 
-		var socket = getSocket();
-		if (!socket) return;
-
-		injectStyles();
-
+	function buildAndWireCard(socket) {
 		var card = document.createElement('div');
 		card.id = CARD_ID;
 		card.innerHTML = buildCardHTML();
-
-		var anchor = findEditPageAnchor();
-		if (anchor) {
-			// מוסיפים מיד אחרי העוגן ב-DOM - כלומר, מתחתיו ויזואלית.
-			anchor.parentNode.insertBefore(card, anchor.nextSibling);
-		} else {
-			// לא נמצא אף עוגן מוכר - עדיף שהכרטיסייה תופיע בראש העמוד
-			// מאשר שתיעלם לגמרי אצל המשתמש הזה.
-			var content = document.getElementById('content');
-			if (!content) return;
-			content.insertBefore(card, content.firstChild);
-		}
 
 		var statusEl = card.querySelector('#ir_status');
 		var renewalEl = card.querySelector('#ir_renewal');
@@ -204,11 +197,41 @@
 				checkBanner(true);
 			});
 		});
+
+		return card;
+	}
+
+	function injectCard() {
+		if (!onEditPage()) return;
+		if (document.getElementById(CARD_ID)) return;
+
+		var socket = getSocket();
+		if (!socket) return;
+
+		// מונע ניסיונות מקבילים: אם onPageChange נורה כמה פעמים ברצף בזמן
+		// שעדיין מחכים לעוגן (ראו findEditPageAnchorWithRetry), לא מתחילים
+		// שרשרת ניסיונות נוספת - זה מה שיכול לגרום לכרטיסייה כפולה.
+		if (injectCard._pending) return;
+		injectCard._pending = true;
+
+		findEditPageAnchorWithRetry(function (anchor) {
+			injectCard._pending = false;
+			if (!anchor) {
+				console.warn('[insurance-reminder] לא נמצא פריט "שיוך חשבון חיצוני" בעמוד עריכת הפרופיל - הכרטיסייה לא הוצגה. פתחו קונסולת מפתחים (F12), בדקו את מבנה ה-HTML סביב פרטי החשבון המקושר ותשלחו לי צילום מסך.');
+				return;
+			}
+			if (document.getElementById(CARD_ID)) return;
+			injectStyles();
+			var card = buildAndWireCard(socket);
+			// מוסיפים מיד אחרי העוגן ב-DOM - כלומר, מתחתיו ויזואלית.
+			anchor.parentNode.insertBefore(card, anchor.nextSibling);
+		});
 	}
 
 	// ============ ריבוע בעמוד הפרופיל הציבורי /user/<slug> ============
 
 	var STAT_ID = 'insurance-reminder-stat';
+	var STAT_PENDING_ATTR = 'data-insurance-stat-pending';
 
 	function onProfilePage() {
 		try {
@@ -257,8 +280,18 @@
 			return;
 		}
 
+		// מונע כפילות: onPageChange יכול להיקרא כמה פעמים ברצף (למשל גם
+		// מ-DOMContentLoaded וגם מ-ajaxify.end בטעינה ראשונה), ובלי הגנה כזו
+		// כל קריאה הייתה יכולה לפתוח בקשת socket משלה לפני שהקודמת סיימה
+		// והכניסה את הקובייה ל-DOM - וכך נוצרות שתי קוביות "תוקף ביטוח".
+		// מסמנים על העוגן עצמו *באופן סינכרוני*, לפני הבקשה ל-socket, כדי
+		// שקריאה שנייה שמגיעה בינתיים תיבלם כאן ולא תתחיל בקשה כפולה.
+		if (anchor.getAttribute(STAT_PENDING_ATTR)) return;
+		anchor.setAttribute(STAT_PENDING_ATTR, '1');
+
 		socket.emit('plugins.insuranceReminder.status', {}, function (err, data) {
 			if (err) return;
+			if (document.getElementById(STAT_ID)) return; // הגנה כפולה למקרה קיצון
 
 			var value, colorClass;
 			if (!data || data.daysLeft === null || data.daysLeft === undefined) {
