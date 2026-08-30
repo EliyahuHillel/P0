@@ -1,0 +1,9 @@
+{
+  "id": "nodebb-plugin-gemach-directory",
+  "name": "Gemach Directory",
+  "description": "Server-side storage + admin approval queue for a community gemach (free-lending) directory, filterable by city and category.",
+  "library": "./library.js",
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" }
+  ]
+}

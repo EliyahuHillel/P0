@@ -1,0 +1,14 @@
+{
+  "name": "nodebb-plugin-gemach-directory",
+  "version": "1.0.0",
+  "description": "Server-side storage + admin approval queue for a community gemach directory, filterable by city and category.",
+  "main": "library.js",
+  "keywords": [
+    "nodebb",
+    "nodebb-plugin"
+  ],
+  "nbbpm": {
+    "compatibility": "^2.0.0 || ^3.0.0 || ^4.0.0"
+  },
+  "license": "MIT"
+}
