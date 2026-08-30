@@ -1,0 +1,14 @@
+{
+  "name": "nodebb-plugin-emergency-rebuild",
+  "version": "1.0.0",
+  "description": "Hidden, secret-key-protected emergency rebuild+restart route for NodeBB that bypasses view rendering, for admin-only disaster recovery.",
+  "main": "library.js",
+  "keywords": [
+    "nodebb",
+    "nodebb-plugin"
+  ],
+  "nbbpm": {
+    "compatibility": "^2.0.0 || ^3.0.0 || ^4.0.0"
+  },
+  "license": "MIT"
+}

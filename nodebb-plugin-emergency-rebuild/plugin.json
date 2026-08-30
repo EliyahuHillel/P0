@@ -1,0 +1,9 @@
+{
+  "id": "nodebb-plugin-emergency-rebuild",
+  "name": "Emergency Rebuild",
+  "description": "Hidden, secret-key-protected route that runs \"nodebb build\" + restart directly, bypassing NodeBB's own view/template rendering - for admin-only disaster recovery when the site is up but broken (e.g. \"Failed to lookup view\").",
+  "library": "./library.js",
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" }
+  ]
+}
