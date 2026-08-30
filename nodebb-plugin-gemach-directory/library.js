@@ -32,6 +32,9 @@ const COUNTER_OBJECT = 'gemachDirectory:counters';
 const PENDING_SET = 'gemachDirectory:pending';
 const APPROVED_SET = 'gemachDirectory:approved';
 const GEMACH_KEY = id => `gemachDirectory:item:${id}`;
+// מפה של uid -> '0'/'1' - האם המנהל הזה רוצה לקבל התראות על גמ"חים חדשים.
+// חסר מפתח = כברירת מחדל כן (כדי שמנהלים קיימים לא "יפספסו" בלי לשים לב).
+const NOTIFY_PREFS_OBJECT = 'gemachDirectory:notifyPrefs';
 
 const MAX_LENGTHS = {
 	name: 120,
@@ -123,6 +126,21 @@ function registerSocketHandlers() {
 
 		return { ok: true };
 	};
+
+	// כל מנהל בודק/קובע בעצמו אם הוא רוצה לקבל התראות על הצעות חדשות -
+	// לא משפיע על שאר המנהלים.
+	SocketPlugins.gemachDirectory.getNotifyPreference = async function (socket) {
+		await requireAdmin(socket);
+		const value = await db.getObjectField(NOTIFY_PREFS_OBJECT, socket.uid);
+		return { enabled: value !== '0' };
+	};
+
+	SocketPlugins.gemachDirectory.setNotifyPreference = async function (socket, data) {
+		await requireAdmin(socket);
+		const enabled = !!(data && data.enabled);
+		await db.setObjectField(NOTIFY_PREFS_OBJECT, socket.uid, enabled ? '1' : '0');
+		return { ok: true };
+	};
 }
 
 async function getGemachsFromSet(setKey, newestFirst) {
@@ -138,6 +156,11 @@ async function notifyAdmins(gemach) {
 	const adminUids = await groups.getMembers('administrators', 0, -1);
 	if (!adminUids || !adminUids.length) return;
 
+	const prefs = (await db.getObject(NOTIFY_PREFS_OBJECT)) || {};
+	// חסר מפתח = כברירת מחדל כן (רק '0' מפורש מכבה עבור מנהל ספציפי).
+	const targetUids = adminUids.filter(uid => prefs[uid] !== '0');
+	if (!targetUids.length) return;
+
 	const notification = await notifications.create({
 		type: 'gemach-directory-pending',
 		// nid כולל את מזהה הגמ"ח - כך שכל הצעה חדשה היא התראה "חדשה" נפרדת
@@ -146,7 +169,7 @@ async function notifyAdmins(gemach) {
 		path: '/',
 		from: gemach.submittedBy,
 	});
-	await notifications.push(notification, adminUids);
+	await notifications.push(notification, targetUids);
 }
 
 function requireLogin(socket) {

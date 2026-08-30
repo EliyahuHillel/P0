@@ -145,6 +145,10 @@
 			+ '#' + APP_ID + ' .gd-card-desc{font-size:12.5px;color:#6b7078;margin-bottom:10px;line-height:1.5;}'
 			+ '#' + APP_ID + ' .gd-card-hint{font-size:11.5px;color:var(--gd-accent-dark);font-weight:600;opacity:.75;}'
 			+ '#' + APP_ID + ' .gd-empty{color:#9aa0a6;font-size:13.5px;padding:24px 0;text-align:center;}'
+			+ '#' + APP_ID + ' .gd-admin-bar{margin-bottom:12px;}'
+			+ '#' + APP_ID + ' .gd-notify-toggle{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;'
+			+ 'color:#6b7078;cursor:pointer;}'
+			+ '#' + APP_ID + ' .gd-notify-toggle input{cursor:pointer;}'
 			+ '#' + APP_ID + ' .gd-pending{background:#fff8ec;border:1px solid #f2e0b8;border-radius:14px;'
 			+ 'padding:14px 16px;margin-bottom:20px;}'
 			+ '#' + APP_ID + ' .gd-pending h4{margin:0 0 10px;font-size:14px;color:#9a6a1e;}'
@@ -383,20 +387,46 @@
 		});
 	}
 
+	// פאנל המנהל: שורת הגדרות (הפעלה/כיבוי התראות אישיות למנהל הזה בלבד -
+	// לא משפיע על מנהלים אחרים) שתמיד מוצגת, ומתחתיה רשימת הממתינים לאישור
+	// (שמופיעה/נעלמת לפי אם יש הצעות ממתינות).
 	function loadPendingPanel(root, socket) {
 		if (!isAdmin()) return;
 		var panel = root.querySelector('#gd_admin_pending');
 
+		panel.innerHTML = ''
+			+ '<div class="gd-admin-bar">'
+			+ '<label class="gd-notify-toggle">'
+			+ '<input type="checkbox" id="gd_notify_toggle" checked> קבלת התראות אליי על הצעות גמ"ח חדשות'
+			+ '</label>'
+			+ '</div>'
+			+ '<div id="gd_pending_list"></div>';
+
+		var toggle = panel.querySelector('#gd_notify_toggle');
+		socket.emit('plugins.gemachDirectory.getNotifyPreference', {}, function (err, res) {
+			if (!err && res) toggle.checked = !!res.enabled;
+		});
+		toggle.addEventListener('change', function () {
+			socket.emit('plugins.gemachDirectory.setNotifyPreference', { enabled: toggle.checked }, function () {});
+		});
+
+		refreshPendingList(root, socket);
+	}
+
+	function refreshPendingList(root, socket) {
+		var listEl = root.querySelector('#gd_pending_list');
+		if (!listEl) return;
+
 		socket.emit('plugins.gemachDirectory.listPending', {}, function (err, pending) {
 			if (err || !pending || !pending.length) {
-				panel.innerHTML = '';
+				listEl.innerHTML = '';
 				return;
 			}
-			panel.innerHTML = ''
+			listEl.innerHTML = ''
 				+ '<div class="gd-pending"><h4>ממתינים לאישור (' + pending.length + ')</h4>'
 				+ pending.map(pendingRowHTML).join('') + '</div>';
 
-			panel.querySelectorAll('.gd-pending-row button').forEach(function (btn) {
+			listEl.querySelectorAll('.gd-pending-row button').forEach(function (btn) {
 				btn.addEventListener('click', function () {
 					var row = btn.closest('.gd-pending-row');
 					var id = row.getAttribute('data-id');
@@ -404,7 +434,7 @@
 					socket.emit('plugins.gemachDirectory.' + action, { id: id }, function (err2) {
 						if (err2) return;
 						row.remove();
-						if (!panel.querySelector('.gd-pending-row')) panel.innerHTML = '';
+						if (!listEl.querySelector('.gd-pending-row')) listEl.innerHTML = '';
 						if (action === 'approve') loadApprovedList(root, socket);
 					});
 				});
