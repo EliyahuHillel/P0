@@ -55,14 +55,19 @@
 
 	// ============ זיהוי נושא "רשימת גמחים" לפי הכותרת ============
 
-	function normalizeTitle(str) {
-		return String(str || '').replace(/["'׳״]/g, '').replace(/\s+/g, '');
+	// משאיר רק אותיות עבריות - מוריד כל סוג של גרש/מרכאות (יש כמה תווי
+	// יוניקוד שונים שנראים זהים: ", ', ׳, ״, ", ", וכו'), רווחים, מקפים
+	// וכל תו אחר. כך ההתאמה לא תלויה בדיוק באיזה תו הקלדנו/הודבק.
+	function hebrewLettersOnly(str) {
+		return String(str || '').replace(/[^א-ת]/g, '');
 	}
 
 	function isDirectoryTopic() {
 		try {
 			var title = (window.ajaxify && ajaxify.data && ajaxify.data.title) || '';
-			return normalizeTitle(title).indexOf('רשימתגמחים') !== -1;
+			var lettersOnly = hebrewLettersOnly(title);
+			// "רשימ" מכסה גם רשימת/רשימה, "גמח" מכסה גם גמ"ח/גמחים/גמ"חים
+			return lettersOnly.indexOf('רשימ') !== -1 && lettersOnly.indexOf('גמח') !== -1;
 		} catch (e) {
 			return false;
 		}
