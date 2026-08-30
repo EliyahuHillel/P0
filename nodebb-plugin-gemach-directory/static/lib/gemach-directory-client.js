@@ -28,7 +28,17 @@
 	'use strict';
 
 	var CITIES = ['ירושלים', 'בני ברק', 'מודיעין עילית', 'ביתר עילית', 'אלעד', 'אשדוד', 'צפת', 'רכסים'];
-	var CATEGORIES = ['כלי עבודה', 'ציוד רפואי', 'ציוד לרכב', 'ציוד לתינוקות', 'ציוד לאירועים', 'ריהוט', 'ספרים ולימוד', 'אחר'];
+	var CATEGORIES = ['ניווט (וויז/GPS)', 'כלי עבודה לרכב', 'ציוד חירום ובטיחות', 'מצברים וכבלים', 'מולטימדיה לרכב', 'גרירה וחילוץ', 'כיסויים ואביזרים', 'אחר'];
+	var CATEGORY_ICONS = {
+		'ניווט (וויז/GPS)': '🧭',
+		'כלי עבודה לרכב': '🔧',
+		'ציוד חירום ובטיחות': '🚨',
+		'מצברים וכבלים': '🔋',
+		'מולטימדיה לרכב': '🎵',
+		'גרירה וחילוץ': '🪝',
+		'כיסויים ואביזרים': '🧴',
+		'אחר': '📦',
+	};
 	var OTHER_VALUE = '__other__';
 
 	var STYLE_ID = 'gemach-directory-style';
@@ -83,49 +93,68 @@
 	function injectStyles() {
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
-			+ '#' + APP_ID + '{font-family:Rubik,Arial,sans-serif;direction:rtl;margin-top:18px;'
-			+ 'padding-top:14px;border-top:1px solid #e9e3d8;}'
-			+ '#' + APP_ID + ' .gd-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;}'
-			+ '#' + APP_ID + ' select{padding:8px 10px;border:1px solid #e9e3d8;border-radius:8px;background:#fff;'
-			+ 'font-family:inherit;font-size:13.5px;color:#332f28;}'
-			+ '#' + APP_ID + ' .gd-add-btn{margin-inline-start:auto;padding:9px 18px;border-radius:20px;border:none;'
-			+ 'background:#4f6b57;color:#fff;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;}'
-			+ '#' + APP_ID + ' .gd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}'
-			+ '#' + APP_ID + ' .gd-card{background:#faf7f2;border:1px solid #e9e3d8;border-radius:12px;padding:14px 16px;}'
-			+ '#' + APP_ID + ' .gd-card-title{font-family:"Frank Ruhl Libre",serif;font-size:16px;color:#332f28;margin-bottom:4px;}'
-			+ '#' + APP_ID + ' .gd-card-meta{font-size:12px;color:#867d6e;margin-bottom:8px;}'
-			+ '#' + APP_ID + ' .gd-card-desc{font-size:13px;color:#5c5346;margin-bottom:8px;line-height:1.5;}'
-			+ '#' + APP_ID + ' .gd-card-contact{font-size:13px;color:#4f6b57;font-weight:600;}'
-			+ '#' + APP_ID + ' .gd-empty{color:#867d6e;font-size:13.5px;padding:10px 0;}'
-			+ '#' + APP_ID + ' .gd-pending{background:#fdf0e2;border:1px solid #f0d5ac;border-radius:12px;'
-			+ 'padding:14px 16px;margin-bottom:18px;}'
-			+ '#' + APP_ID + ' .gd-pending h4{margin:0 0 10px;font-size:14px;color:#9a5b1e;}'
+			+ '#' + APP_ID + '{font-family:Rubik,Arial,sans-serif;direction:rtl;margin-top:24px;'
+			+ 'padding:0;}'
+			+ '#' + APP_ID + ' .gd-hero{text-align:center;background:linear-gradient(180deg,#f3f8f4,#ffffff);'
+			+ 'border:1px solid #e6efe8;border-radius:20px;padding:32px 20px 26px;margin-bottom:22px;}'
+			+ '#' + APP_ID + ' .gd-hero-icon{font-size:34px;margin-bottom:6px;}'
+			+ '#' + APP_ID + ' .gd-hero-title{font-family:"Frank Ruhl Libre",serif;font-size:24px;color:#26352b;'
+			+ 'margin:0 0 8px;}'
+			+ '#' + APP_ID + ' .gd-hero-sub{font-size:14px;color:#6b7a70;margin:0 0 18px;line-height:1.6;}'
+			+ '#' + APP_ID + ' .gd-add-btn{padding:11px 26px;border-radius:24px;border:none;'
+			+ 'background:#3f7a54;color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;'
+			+ 'box-shadow:0 6px 16px rgba(63,122,84,.28);transition:transform .12s ease,box-shadow .12s ease;}'
+			+ '#' + APP_ID + ' .gd-add-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(63,122,84,.34);}'
+			+ '#' + APP_ID + ' .gd-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px;}'
+			+ '#' + APP_ID + ' select{padding:9px 12px;border:1px solid #e2e6e2;border-radius:10px;background:#fff;'
+			+ 'font-family:inherit;font-size:13.5px;color:#2a332c;box-shadow:0 1px 2px rgba(0,0,0,.03);}'
+			+ '#' + APP_ID + ' .gd-chips{display:flex;flex-wrap:wrap;gap:8px;}'
+			+ '#' + APP_ID + ' .gd-chip{padding:8px 14px;border-radius:20px;border:1px solid #e2e6e2;background:#fff;'
+			+ 'font-family:inherit;font-size:13px;color:#4a5750;cursor:pointer;transition:all .12s ease;}'
+			+ '#' + APP_ID + ' .gd-chip:hover{border-color:#bcd6c4;}'
+			+ '#' + APP_ID + ' .gd-chip.active{background:#3f7a54;border-color:#3f7a54;color:#fff;font-weight:600;}'
+			+ '#' + APP_ID + ' .gd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}'
+			+ '#' + APP_ID + ' .gd-card{background:#fff;border:1px solid #ecefe9;border-radius:16px;padding:16px 18px;'
+			+ 'box-shadow:0 2px 10px rgba(30,40,33,.05);transition:transform .12s ease,box-shadow .12s ease;}'
+			+ '#' + APP_ID + ' .gd-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(30,40,33,.09);}'
+			+ '#' + APP_ID + ' .gd-card-title{font-family:"Frank Ruhl Libre",serif;font-size:16.5px;color:#26352b;margin-bottom:5px;}'
+			+ '#' + APP_ID + ' .gd-card-meta{font-size:12px;color:#8a9188;margin-bottom:10px;}'
+			+ '#' + APP_ID + ' .gd-card-desc{font-size:13px;color:#5c645c;margin-bottom:10px;line-height:1.55;}'
+			+ '#' + APP_ID + ' .gd-card-contact{font-size:13px;color:#3f7a54;font-weight:700;'
+			+ 'border-top:1px solid #f0f2ee;padding-top:9px;}'
+			+ '#' + APP_ID + ' .gd-empty{color:#8a9188;font-size:13.5px;padding:20px 0;text-align:center;}'
+			+ '#' + APP_ID + ' .gd-pending{background:#fff8ec;border:1px solid #f2e0b8;border-radius:16px;'
+			+ 'padding:16px 18px;margin-bottom:20px;}'
+			+ '#' + APP_ID + ' .gd-pending h4{margin:0 0 10px;font-size:14px;color:#9a6a1e;}'
 			+ '#' + APP_ID + ' .gd-pending-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;'
-			+ 'padding:8px 0;border-bottom:1px solid #f0d5ac;font-size:13px;color:#332f28;}'
+			+ 'padding:9px 0;border-bottom:1px solid #f2e0b8;font-size:13px;color:#332f28;}'
 			+ '#' + APP_ID + ' .gd-pending-row:last-child{border-bottom:none;}'
 			+ '#' + APP_ID + ' .gd-pending-row .gd-flex{flex:1;min-width:180px;}'
-			+ '#' + APP_ID + ' .gd-btn-ok{background:#4f6b57;color:#fff;border:none;border-radius:6px;padding:6px 12px;'
-			+ 'font-size:12.5px;cursor:pointer;font-family:inherit;}'
-			+ '#' + APP_ID + ' .gd-btn-no{background:#fff;color:#a14444;border:1px solid #e0b8b8;border-radius:6px;'
-			+ 'padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;}'
-			+ '#' + MODAL_ID + '-overlay{position:fixed;inset:0;background:rgba(30,26,20,.5);z-index:2000;'
+			+ '#' + APP_ID + ' .gd-btn-ok{background:#3f7a54;color:#fff;border:none;border-radius:8px;padding:7px 14px;'
+			+ 'font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}'
+			+ '#' + APP_ID + ' .gd-btn-no{background:#fff;color:#a14444;border:1px solid #e5c2c2;border-radius:8px;'
+			+ 'padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}'
+			+ '#' + MODAL_ID + '-overlay{position:fixed;inset:0;background:rgba(24,30,25,.5);z-index:2000;'
 			+ 'display:flex;align-items:center;justify-content:center;padding:20px;}'
-			+ '#' + MODAL_ID + '{background:#fff;border-radius:16px;padding:26px;max-width:420px;width:100%;'
-			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;max-height:90vh;overflow:auto;}'
-			+ '#' + MODAL_ID + ' h3{font-family:"Frank Ruhl Libre",serif;margin:0 0 16px;font-size:20px;color:#332f28;}'
-			+ '#' + MODAL_ID + ' label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#332f28;}'
+			+ '#' + MODAL_ID + '{background:#fff;border-radius:20px;padding:28px;max-width:420px;width:100%;'
+			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;max-height:90vh;overflow:auto;'
+			+ 'box-shadow:0 20px 50px rgba(20,30,22,.2);}'
+			+ '#' + MODAL_ID + ' h3{font-family:"Frank Ruhl Libre",serif;margin:0 0 18px;font-size:21px;color:#26352b;}'
+			+ '#' + MODAL_ID + ' label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#3a453d;}'
 			+ '#' + MODAL_ID + ' .gd-field{margin-bottom:14px;}'
 			+ '#' + MODAL_ID + ' input[type=text],#' + MODAL_ID + ' select,#' + MODAL_ID + ' textarea{width:100%;'
-			+ 'padding:10px 12px;border:1px solid #e9e3d8;border-radius:8px;font-family:inherit;font-size:14px;'
-			+ 'box-sizing:border-box;color:#332f28;}'
+			+ 'padding:10px 12px;border:1px solid #e2e6e2;border-radius:10px;font-family:inherit;font-size:14px;'
+			+ 'box-sizing:border-box;color:#26352b;background:#fbfcfa;}'
+			+ '#' + MODAL_ID + ' input[type=text]:focus,#' + MODAL_ID + ' select:focus,#' + MODAL_ID + ' textarea:focus{'
+			+ 'outline:none;border-color:#3f7a54;background:#fff;}'
 			+ '#' + MODAL_ID + ' textarea{resize:vertical;min-height:70px;}'
 			+ '#' + MODAL_ID + ' .gd-actions{display:flex;gap:10px;margin-top:18px;}'
-			+ '#' + MODAL_ID + ' .gd-submit{flex:1;padding:11px;border-radius:10px;border:none;background:#4f6b57;'
-			+ 'color:#fff;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;}'
-			+ '#' + MODAL_ID + ' .gd-cancel{padding:11px 18px;border-radius:10px;border:1px solid #e9e3d8;'
-			+ 'background:#fff;color:#867d6e;font-size:14px;cursor:pointer;font-family:inherit;}'
+			+ '#' + MODAL_ID + ' .gd-submit{flex:1;padding:12px;border-radius:12px;border:none;background:#3f7a54;'
+			+ 'color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;}'
+			+ '#' + MODAL_ID + ' .gd-cancel{padding:12px 18px;border-radius:12px;border:1px solid #e2e6e2;'
+			+ 'background:#fff;color:#6b7a70;font-size:14px;cursor:pointer;font-family:inherit;}'
 			+ '#' + MODAL_ID + ' .gd-status{font-size:13px;margin-top:10px;min-height:16px;}'
-			+ '#' + MODAL_ID + ' .gd-status.ok{color:#4f7a3b;}'
+			+ '#' + MODAL_ID + ' .gd-status.ok{color:#3f7a54;}'
 			+ '#' + MODAL_ID + ' .gd-status.err{color:#a14444;}';
 		var style = document.createElement('style');
 		style.id = STYLE_ID;
@@ -135,18 +164,33 @@
 
 	// ============ בניית תוכן ============
 
-	function optionsHTML(list, includeOtherOnly) {
+	function optionsHTML(list) {
 		return list.map(function (item) {
-			return '<option value="' + escapeHtml(item) + '">' + escapeHtml(item) + '</option>';
+			var icon = CATEGORY_ICONS[item] ? (CATEGORY_ICONS[item] + ' ') : '';
+			return '<option value="' + escapeHtml(item) + '">' + icon + escapeHtml(item) + '</option>';
 		}).join('');
+	}
+
+	function categoryChipsHTML() {
+		var all = '<button type="button" class="gd-chip active" data-value="">🔎 הכל</button>';
+		var rest = CATEGORIES.map(function (cat) {
+			var icon = CATEGORY_ICONS[cat] ? (CATEGORY_ICONS[cat] + ' ') : '';
+			return '<button type="button" class="gd-chip" data-value="' + escapeHtml(cat) + '">' + icon + escapeHtml(cat) + '</button>';
+		}).join('');
+		return all + rest;
 	}
 
 	function buildAppShellHTML() {
 		return ''
+			+ '<div class="gd-hero">'
+			+ '<div class="gd-hero-icon">🚗</div>'
+			+ '<h2 class="gd-hero-title">רשימת הגמ"חים לרכב</h2>'
+			+ '<p class="gd-hero-sub">השאילו וקבלו ציוד לרכב מהקהילה - בחינם, מסודר לפי עיר וקטגוריה.</p>'
+			+ '<button type="button" class="gd-add-btn" id="gd_open_add">+ הוספת גמ"ח</button>'
+			+ '</div>'
 			+ '<div class="gd-toolbar">'
 			+ '<select id="gd_filter_city"><option value="">כל הערים</option>' + optionsHTML(CITIES) + '</select>'
-			+ '<select id="gd_filter_category"><option value="">כל הקטגוריות</option>' + optionsHTML(CATEGORIES) + '</select>'
-			+ '<button type="button" class="gd-add-btn" id="gd_open_add">+ הוספת גמ"ח</button>'
+			+ '<div class="gd-chips" id="gd_filter_category_chips">' + categoryChipsHTML() + '</div>'
 			+ '</div>'
 			+ '<div id="gd_admin_pending"></div>'
 			+ '<div id="gd_list" class="gd-grid"><div class="gd-empty">טוען...</div></div>';
@@ -173,10 +217,11 @@
 	}
 
 	function gemachCardHTML(g) {
+		var icon = CATEGORY_ICONS[g.category] ? (CATEGORY_ICONS[g.category] + ' ') : '';
 		return ''
 			+ '<div class="gd-card" data-city="' + escapeHtml(g.city) + '" data-category="' + escapeHtml(g.category) + '">'
 			+ '<div class="gd-card-title">' + escapeHtml(g.name) + '</div>'
-			+ '<div class="gd-card-meta">' + escapeHtml(g.city) + ' · ' + escapeHtml(g.category) + '</div>'
+			+ '<div class="gd-card-meta">' + icon + escapeHtml(g.category) + ' · ' + escapeHtml(g.city) + '</div>'
 			+ (g.description ? '<div class="gd-card-desc">' + escapeHtml(g.description) + '</div>' : '')
 			+ '<div class="gd-card-contact">📞 ' + escapeHtml(g.contact) + '</div>'
 			+ '</div>';
@@ -198,7 +243,8 @@
 	function renderList(root) {
 		var listEl = root.querySelector('#gd_list');
 		var cityFilter = root.querySelector('#gd_filter_city').value;
-		var categoryFilter = root.querySelector('#gd_filter_category').value;
+		var activeChip = root.querySelector('#gd_filter_category_chips .gd-chip.active');
+		var categoryFilter = activeChip ? activeChip.getAttribute('data-value') : '';
 
 		var filtered = currentGemachs.filter(function (g) {
 			return (!cityFilter || g.city === cityFilter) && (!categoryFilter || g.category === categoryFilter);
@@ -327,7 +373,13 @@
 		target.appendChild(app);
 
 		app.querySelector('#gd_filter_city').addEventListener('change', function () { renderList(app); });
-		app.querySelector('#gd_filter_category').addEventListener('change', function () { renderList(app); });
+		app.querySelectorAll('#gd_filter_category_chips .gd-chip').forEach(function (chip) {
+			chip.addEventListener('click', function () {
+				app.querySelectorAll('#gd_filter_category_chips .gd-chip').forEach(function (c) { c.classList.remove('active'); });
+				chip.classList.add('active');
+				renderList(app);
+			});
+		});
 		app.querySelector('#gd_open_add').addEventListener('click', function () { openAddModal(app, socket); });
 
 		loadApprovedList(app, socket);
