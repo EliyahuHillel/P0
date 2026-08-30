@@ -11,8 +11,10 @@
  * 1. פותחים נושא (topic) חדש בפורום, עם כותרת שמכילה בדיוק את המילים
  *    "רשימת גמחים" (עם או בלי גרשיים, למשל "רשימת גמ״חים - לחצו להוספה") -
  *    הסקריפט מזהה את הנושא הזה לפי הכותרת, ומוסיף בתוך הפוסט הראשון שלו
- *    (בלי למחוק את מה שכבר כתוב שם) את כל הווידג'ט: שני תפריטי סינון
- *    (עיר וקטגוריה), כפתור "הוספת גמ"ח", ואת רשימת הגמ"חים המאושרים.
+ *    (בלי למחוק את מה שכבר כתוב שם) את כל הווידג'ט: חיפוש חופשי, סינון
+ *    לפי עיר, כפתור "הוספת גמ"ח", ואת רשימת הגמ"חים המאושרים - מחולקת
+ *    לפי קטגוריה (כל קטגוריה עם כותרת משלה), ובתוך כל קטגוריה מחולקת שוב
+ *    לפי עיר.
  * 2. לחיצה על "הוספת גמ"ח" פותחת טופס קצר (שם, עיר, קטגוריה, איש קשר,
  *    תיאור). שליחה שומרת אותו בשרת כ"ממתין לאישור" - הוא *לא* מוצג לאף
  *    אחד, כולל מי ששלח אותו, עד שמנהל מאשר.
@@ -28,17 +30,9 @@
 	'use strict';
 
 	var CITIES = ['ירושלים', 'בני ברק', 'מודיעין עילית', 'ביתר עילית', 'אלעד', 'אשדוד', 'צפת', 'רכסים'];
-	var CATEGORIES = ['ניווט (וויז/GPS)', 'כלי עבודה לרכב', 'ציוד חירום ובטיחות', 'מצברים וכבלים', 'מולטימדיה לרכב', 'גרירה וחילוץ', 'כיסויים ואביזרים', 'אחר'];
-	var CATEGORY_ICONS = {
-		'ניווט (וויז/GPS)': '🧭',
-		'כלי עבודה לרכב': '🔧',
-		'ציוד חירום ובטיחות': '🚨',
-		'מצברים וכבלים': '🔋',
-		'מולטימדיה לרכב': '🎵',
-		'גרירה וחילוץ': '🪝',
-		'כיסויים ואביזרים': '🧴',
-		'אחר': '📦',
-	};
+	// כרגע רק שתי קטגוריות - אפשר להוסיף עוד בקלות (מוסיפים מחרוזת לרשימה
+	// כאן, ומפרסמים מחדש את הקוד).
+	var CATEGORIES = ['כלי עבודה', 'וויז'];
 	var OTHER_VALUE = '__other__';
 
 	var STYLE_ID = 'gemach-directory-style';
@@ -93,65 +87,61 @@
 	function injectStyles() {
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
-			+ '#' + APP_ID + '{font-family:Rubik,Arial,sans-serif;direction:rtl;margin-top:24px;'
-			+ 'padding:0;}'
-			+ '#' + APP_ID + ' .gd-hero{text-align:center;background:linear-gradient(180deg,#f3f8f4,#ffffff);'
-			+ 'border:1px solid #e6efe8;border-radius:20px;padding:32px 20px 26px;margin-bottom:22px;}'
-			+ '#' + APP_ID + ' .gd-hero-icon{font-size:34px;margin-bottom:6px;}'
-			+ '#' + APP_ID + ' .gd-hero-title{font-family:"Frank Ruhl Libre",serif;font-size:24px;color:#26352b;'
-			+ 'margin:0 0 8px;}'
-			+ '#' + APP_ID + ' .gd-hero-sub{font-size:14px;color:#6b7a70;margin:0 0 18px;line-height:1.6;}'
-			+ '#' + APP_ID + ' .gd-add-btn{padding:11px 26px;border-radius:24px;border:none;'
-			+ 'background:#3f7a54;color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;'
-			+ 'box-shadow:0 6px 16px rgba(63,122,84,.28);transition:transform .12s ease,box-shadow .12s ease;}'
-			+ '#' + APP_ID + ' .gd-add-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(63,122,84,.34);}'
-			+ '#' + APP_ID + ' .gd-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px;}'
-			+ '#' + APP_ID + ' select{padding:9px 12px;border:1px solid #e2e6e2;border-radius:10px;background:#fff;'
-			+ 'font-family:inherit;font-size:13.5px;color:#2a332c;box-shadow:0 1px 2px rgba(0,0,0,.03);}'
-			+ '#' + APP_ID + ' .gd-chips{display:flex;flex-wrap:wrap;gap:8px;}'
-			+ '#' + APP_ID + ' .gd-chip{padding:8px 14px;border-radius:20px;border:1px solid #e2e6e2;background:#fff;'
-			+ 'font-family:inherit;font-size:13px;color:#4a5750;cursor:pointer;transition:all .12s ease;}'
-			+ '#' + APP_ID + ' .gd-chip:hover{border-color:#bcd6c4;}'
-			+ '#' + APP_ID + ' .gd-chip.active{background:#3f7a54;border-color:#3f7a54;color:#fff;font-weight:600;}'
-			+ '#' + APP_ID + ' .gd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}'
-			+ '#' + APP_ID + ' .gd-card{background:#fff;border:1px solid #ecefe9;border-radius:16px;padding:16px 18px;'
-			+ 'box-shadow:0 2px 10px rgba(30,40,33,.05);transition:transform .12s ease,box-shadow .12s ease;}'
-			+ '#' + APP_ID + ' .gd-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(30,40,33,.09);}'
-			+ '#' + APP_ID + ' .gd-card-title{font-family:"Frank Ruhl Libre",serif;font-size:16.5px;color:#26352b;margin-bottom:5px;}'
-			+ '#' + APP_ID + ' .gd-card-meta{font-size:12px;color:#8a9188;margin-bottom:10px;}'
-			+ '#' + APP_ID + ' .gd-card-desc{font-size:13px;color:#5c645c;margin-bottom:10px;line-height:1.55;}'
-			+ '#' + APP_ID + ' .gd-card-contact{font-size:13px;color:#3f7a54;font-weight:700;'
-			+ 'border-top:1px solid #f0f2ee;padding-top:9px;}'
+			+ '#' + APP_ID + '{font-family:Rubik,Arial,sans-serif;direction:rtl;margin-top:22px;padding:0;}'
+			+ '#' + APP_ID + ' .gd-hero{text-align:center;padding:4px 0 20px;}'
+			+ '#' + APP_ID + ' .gd-hero-title{font-family:"Frank Ruhl Libre",serif;font-size:21px;font-weight:700;'
+			+ 'color:#26352b;margin:0 0 6px;}'
+			+ '#' + APP_ID + ' .gd-hero-sub{font-size:13.5px;color:#6b7a70;margin:0 0 16px;line-height:1.6;}'
+			+ '#' + APP_ID + ' .gd-add-btn{padding:9px 22px;border-radius:20px;border:none;'
+			+ 'background:#3f7a54;color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;}'
+			+ '#' + APP_ID + ' .gd-add-btn:hover{background:#356847;}'
+			+ '#' + APP_ID + ' .gd-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;'
+			+ 'margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #eceee9;}'
+			+ '#' + APP_ID + ' .gd-search{flex:1;min-width:160px;padding:7px 12px;border:1px solid #e2e6e2;'
+			+ 'border-radius:8px;font-family:inherit;font-size:13px;color:#2a332c;background:#fff;}'
+			+ '#' + APP_ID + ' .gd-search:focus{outline:none;border-color:#3f7a54;}'
+			+ '#' + APP_ID + ' select{padding:7px 10px;border:1px solid #e2e6e2;border-radius:8px;background:#fff;'
+			+ 'font-family:inherit;font-size:13px;color:#2a332c;}'
+			+ '#' + APP_ID + ' .gd-category-section{margin-bottom:24px;}'
+			+ '#' + APP_ID + ' .gd-category-title{font-size:15.5px;font-weight:700;color:#26352b;'
+			+ 'margin:0 0 12px;padding-bottom:7px;border-bottom:1px solid #e6efe8;}'
+			+ '#' + APP_ID + ' .gd-city-group{margin-bottom:14px;}'
+			+ '#' + APP_ID + ' .gd-city-title{font-size:12px;font-weight:600;color:#8a9188;margin:0 0 8px;}'
+			+ '#' + APP_ID + ' .gd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}'
+			+ '#' + APP_ID + ' .gd-card{background:#fff;border:1px solid #ecefe9;border-radius:12px;padding:13px 15px;}'
+			+ '#' + APP_ID + ' .gd-card-title{font-size:14.5px;font-weight:600;color:#26352b;margin-bottom:5px;}'
+			+ '#' + APP_ID + ' .gd-card-desc{font-size:13px;color:#5c645c;margin-bottom:8px;line-height:1.5;}'
+			+ '#' + APP_ID + ' .gd-card-contact{font-size:13px;color:#3f7a54;font-weight:600;}'
 			+ '#' + APP_ID + ' .gd-empty{color:#8a9188;font-size:13.5px;padding:20px 0;text-align:center;}'
-			+ '#' + APP_ID + ' .gd-pending{background:#fff8ec;border:1px solid #f2e0b8;border-radius:16px;'
-			+ 'padding:16px 18px;margin-bottom:20px;}'
+			+ '#' + APP_ID + ' .gd-pending{background:#fff8ec;border:1px solid #f2e0b8;border-radius:14px;'
+			+ 'padding:14px 16px;margin-bottom:20px;}'
 			+ '#' + APP_ID + ' .gd-pending h4{margin:0 0 10px;font-size:14px;color:#9a6a1e;}'
 			+ '#' + APP_ID + ' .gd-pending-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;'
-			+ 'padding:9px 0;border-bottom:1px solid #f2e0b8;font-size:13px;color:#332f28;}'
+			+ 'padding:8px 0;border-bottom:1px solid #f2e0b8;font-size:13px;color:#332f28;}'
 			+ '#' + APP_ID + ' .gd-pending-row:last-child{border-bottom:none;}'
 			+ '#' + APP_ID + ' .gd-pending-row .gd-flex{flex:1;min-width:180px;}'
-			+ '#' + APP_ID + ' .gd-btn-ok{background:#3f7a54;color:#fff;border:none;border-radius:8px;padding:7px 14px;'
+			+ '#' + APP_ID + ' .gd-btn-ok{background:#3f7a54;color:#fff;border:none;border-radius:7px;padding:6px 12px;'
 			+ 'font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}'
-			+ '#' + APP_ID + ' .gd-btn-no{background:#fff;color:#a14444;border:1px solid #e5c2c2;border-radius:8px;'
-			+ 'padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}'
+			+ '#' + APP_ID + ' .gd-btn-no{background:#fff;color:#a14444;border:1px solid #e5c2c2;border-radius:7px;'
+			+ 'padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}'
 			+ '#' + MODAL_ID + '-overlay{position:fixed;inset:0;background:rgba(24,30,25,.5);z-index:2000;'
 			+ 'display:flex;align-items:center;justify-content:center;padding:20px;}'
-			+ '#' + MODAL_ID + '{background:#fff;border-radius:20px;padding:28px;max-width:420px;width:100%;'
+			+ '#' + MODAL_ID + '{background:#fff;border-radius:18px;padding:26px;max-width:420px;width:100%;'
 			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;max-height:90vh;overflow:auto;'
-			+ 'box-shadow:0 20px 50px rgba(20,30,22,.2);}'
-			+ '#' + MODAL_ID + ' h3{font-family:"Frank Ruhl Libre",serif;margin:0 0 18px;font-size:21px;color:#26352b;}'
+			+ 'box-shadow:0 18px 44px rgba(20,30,22,.18);}'
+			+ '#' + MODAL_ID + ' h3{font-size:19px;font-weight:700;margin:0 0 16px;color:#26352b;}'
 			+ '#' + MODAL_ID + ' label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#3a453d;}'
 			+ '#' + MODAL_ID + ' .gd-field{margin-bottom:14px;}'
 			+ '#' + MODAL_ID + ' input[type=text],#' + MODAL_ID + ' select,#' + MODAL_ID + ' textarea{width:100%;'
-			+ 'padding:10px 12px;border:1px solid #e2e6e2;border-radius:10px;font-family:inherit;font-size:14px;'
+			+ 'padding:9px 11px;border:1px solid #e2e6e2;border-radius:9px;font-family:inherit;font-size:14px;'
 			+ 'box-sizing:border-box;color:#26352b;background:#fbfcfa;}'
 			+ '#' + MODAL_ID + ' input[type=text]:focus,#' + MODAL_ID + ' select:focus,#' + MODAL_ID + ' textarea:focus{'
 			+ 'outline:none;border-color:#3f7a54;background:#fff;}'
 			+ '#' + MODAL_ID + ' textarea{resize:vertical;min-height:70px;}'
-			+ '#' + MODAL_ID + ' .gd-actions{display:flex;gap:10px;margin-top:18px;}'
-			+ '#' + MODAL_ID + ' .gd-submit{flex:1;padding:12px;border-radius:12px;border:none;background:#3f7a54;'
+			+ '#' + MODAL_ID + ' .gd-actions{display:flex;gap:10px;margin-top:16px;}'
+			+ '#' + MODAL_ID + ' .gd-submit{flex:1;padding:11px;border-radius:10px;border:none;background:#3f7a54;'
 			+ 'color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;}'
-			+ '#' + MODAL_ID + ' .gd-cancel{padding:12px 18px;border-radius:12px;border:1px solid #e2e6e2;'
+			+ '#' + MODAL_ID + ' .gd-cancel{padding:11px 16px;border-radius:10px;border:1px solid #e2e6e2;'
 			+ 'background:#fff;color:#6b7a70;font-size:14px;cursor:pointer;font-family:inherit;}'
 			+ '#' + MODAL_ID + ' .gd-status{font-size:13px;margin-top:10px;min-height:16px;}'
 			+ '#' + MODAL_ID + ' .gd-status.ok{color:#3f7a54;}'
@@ -166,34 +156,23 @@
 
 	function optionsHTML(list) {
 		return list.map(function (item) {
-			var icon = CATEGORY_ICONS[item] ? (CATEGORY_ICONS[item] + ' ') : '';
-			return '<option value="' + escapeHtml(item) + '">' + icon + escapeHtml(item) + '</option>';
+			return '<option value="' + escapeHtml(item) + '">' + escapeHtml(item) + '</option>';
 		}).join('');
-	}
-
-	function categoryChipsHTML() {
-		var all = '<button type="button" class="gd-chip active" data-value="">🔎 הכל</button>';
-		var rest = CATEGORIES.map(function (cat) {
-			var icon = CATEGORY_ICONS[cat] ? (CATEGORY_ICONS[cat] + ' ') : '';
-			return '<button type="button" class="gd-chip" data-value="' + escapeHtml(cat) + '">' + icon + escapeHtml(cat) + '</button>';
-		}).join('');
-		return all + rest;
 	}
 
 	function buildAppShellHTML() {
 		return ''
 			+ '<div class="gd-hero">'
-			+ '<div class="gd-hero-icon">🚗</div>'
 			+ '<h2 class="gd-hero-title">רשימת הגמ"חים לרכב</h2>'
-			+ '<p class="gd-hero-sub">השאילו וקבלו ציוד לרכב מהקהילה - בחינם, מסודר לפי עיר וקטגוריה.</p>'
+			+ '<p class="gd-hero-sub">השאילו וקבלו ציוד לרכב מהקהילה - בחינם, מסודר לפי קטגוריה ועיר.</p>'
 			+ '<button type="button" class="gd-add-btn" id="gd_open_add">+ הוספת גמ"ח</button>'
 			+ '</div>'
 			+ '<div class="gd-toolbar">'
+			+ '<input type="text" id="gd_search" class="gd-search" placeholder="חיפוש חופשי - שם, תיאור או איש קשר...">'
 			+ '<select id="gd_filter_city"><option value="">כל הערים</option>' + optionsHTML(CITIES) + '</select>'
-			+ '<div class="gd-chips" id="gd_filter_category_chips">' + categoryChipsHTML() + '</div>'
 			+ '</div>'
 			+ '<div id="gd_admin_pending"></div>'
-			+ '<div id="gd_list" class="gd-grid"><div class="gd-empty">טוען...</div></div>';
+			+ '<div id="gd_sections"><div class="gd-empty">טוען...</div></div>';
 	}
 
 	function buildModalHTML() {
@@ -217,13 +196,11 @@
 	}
 
 	function gemachCardHTML(g) {
-		var icon = CATEGORY_ICONS[g.category] ? (CATEGORY_ICONS[g.category] + ' ') : '';
 		return ''
-			+ '<div class="gd-card" data-city="' + escapeHtml(g.city) + '" data-category="' + escapeHtml(g.category) + '">'
+			+ '<div class="gd-card">'
 			+ '<div class="gd-card-title">' + escapeHtml(g.name) + '</div>'
-			+ '<div class="gd-card-meta">' + icon + escapeHtml(g.category) + ' · ' + escapeHtml(g.city) + '</div>'
 			+ (g.description ? '<div class="gd-card-desc">' + escapeHtml(g.description) + '</div>' : '')
-			+ '<div class="gd-card-contact">📞 ' + escapeHtml(g.contact) + '</div>'
+			+ '<div class="gd-card-contact">' + escapeHtml(g.contact) + '</div>'
 			+ '</div>';
 	}
 
@@ -240,27 +217,70 @@
 
 	var currentGemachs = [];
 
+	function matchesSearch(g, term) {
+		if (!term) return true;
+		var haystack = [g.name, g.description, g.contact].join(' ').toLowerCase();
+		return haystack.indexOf(term.toLowerCase()) !== -1;
+	}
+
+	// מציג את הרשימה מחולקת: קודם לפי קטגוריה (כותרת לכל קטגוריה, לפי סדר
+	// CATEGORIES, ובסוף כל קטגוריה שאין לה הגדרה קבועה - "אחר" וכו'), ובתוך
+	// כל קטגוריה - מחולק שוב לפי עיר (כותרת משנה לכל עיר).
 	function renderList(root) {
-		var listEl = root.querySelector('#gd_list');
+		var sectionsEl = root.querySelector('#gd_sections');
 		var cityFilter = root.querySelector('#gd_filter_city').value;
-		var activeChip = root.querySelector('#gd_filter_category_chips .gd-chip.active');
-		var categoryFilter = activeChip ? activeChip.getAttribute('data-value') : '';
+		var searchTerm = root.querySelector('#gd_search').value.trim();
 
 		var filtered = currentGemachs.filter(function (g) {
-			return (!cityFilter || g.city === cityFilter) && (!categoryFilter || g.category === categoryFilter);
+			return (!cityFilter || g.city === cityFilter) && matchesSearch(g, searchTerm);
 		});
 
 		if (!filtered.length) {
-			listEl.innerHTML = '<div class="gd-empty">אין עדיין גמ"חים תואמים לסינון שבחרתם.</div>';
+			sectionsEl.innerHTML = '<div class="gd-empty">אין גמ"חים תואמים לחיפוש/סינון שבחרתם.</div>';
 			return;
 		}
-		listEl.innerHTML = filtered.map(gemachCardHTML).join('');
+
+		var categoryOrder = CATEGORIES.slice();
+		filtered.forEach(function (g) {
+			if (categoryOrder.indexOf(g.category) === -1) categoryOrder.push(g.category);
+		});
+
+		var html = '';
+		categoryOrder.forEach(function (category) {
+			var inCategory = filtered.filter(function (g) { return g.category === category; });
+			if (!inCategory.length) return;
+
+			var byCity = {};
+			inCategory.forEach(function (g) {
+				if (!byCity[g.city]) byCity[g.city] = [];
+				byCity[g.city].push(g);
+			});
+
+			var cityOrder = CITIES.filter(function (c) { return byCity[c]; });
+			Object.keys(byCity).forEach(function (c) {
+				if (cityOrder.indexOf(c) === -1) cityOrder.push(c);
+			});
+
+			var citiesHTML = cityOrder.map(function (city) {
+				return '<div class="gd-city-group">'
+					+ '<div class="gd-city-title">' + escapeHtml(city) + '</div>'
+					+ '<div class="gd-grid">' + byCity[city].map(gemachCardHTML).join('') + '</div>'
+					+ '</div>';
+			}).join('');
+
+			html += '<div class="gd-category-section">'
+				+ '<h3 class="gd-category-title">' + escapeHtml(category) + '</h3>'
+				+ citiesHTML
+				+ '</div>';
+		});
+
+		sectionsEl.innerHTML = html || '<div class="gd-empty">אין גמ"חים תואמים לחיפוש/סינון שבחרתם.</div>';
 	}
 
 	function loadApprovedList(root, socket) {
 		socket.emit('plugins.gemachDirectory.listApproved', {}, function (err, gemachs) {
 			if (err) {
-				root.querySelector('#gd_list').innerHTML = '<div class="gd-empty">שגיאה בטעינת הרשימה.</div>';
+				root.querySelector('#gd_sections').innerHTML = '<div class="gd-empty">שגיאה בטעינת הרשימה.</div>';
 				return;
 			}
 			currentGemachs = gemachs || [];
@@ -373,13 +393,7 @@
 		target.appendChild(app);
 
 		app.querySelector('#gd_filter_city').addEventListener('change', function () { renderList(app); });
-		app.querySelectorAll('#gd_filter_category_chips .gd-chip').forEach(function (chip) {
-			chip.addEventListener('click', function () {
-				app.querySelectorAll('#gd_filter_category_chips .gd-chip').forEach(function (c) { c.classList.remove('active'); });
-				chip.classList.add('active');
-				renderList(app);
-			});
-		});
+		app.querySelector('#gd_search').addEventListener('input', function () { renderList(app); });
 		app.querySelector('#gd_open_add').addEventListener('click', function () { openAddModal(app, socket); });
 
 		loadApprovedList(app, socket);
