@@ -12,7 +12,13 @@
  *   למנהלים (נבדק בשרת, לא רק בממשק) - אישור מעביר את הגמ"ח לרשימה
  *   הציבורית באופן מיידי, דחייה מוחקת אותו לגמרי (בלי לצבור "זבל").
  * - הרשימה הציבורית (SocketPlugins.gemachDirectory.listApproved) פתוחה
- *   לכולם, כולל גולשים לא-מחוברים.
+ *   לכולם, כולל גולשים לא-מחוברים. כל גמ"ח מוחזר עם שם המשתמש שהעלה אותו
+ *   (submittedByUsername/submittedByUserslug) - כדי שהלקוח יוכל להציג
+ *   קרדיט ("מאת @שם") ולדעת אם המשתמש המחובר הוא הבעלים.
+ * - עריכה/מחיקה (SocketPlugins.gemachDirectory.edit/remove) פתוחים למי
+ *   שהעלה את הגמ"ח (נבדק לפי socket.uid מול השדה submittedBy שנשמר בזמן
+ *   ההעלאה - אי אפשר לזייף) *או* למנהל - מנהל יכול לערוך/למחוק כל גמ"ח,
+ *   משתמש רגיל רק את שלו.
  *
  * חלק הלקוח (הצגת הרשימה, הטופס להוספה, פאנל האישור למנהל) *לא* נמצא כאן -
  * הוא קובץ נפרד (gemach-directory-client.js) שמודבק ב-Custom JS של הפורום,
@@ -141,6 +147,48 @@ function registerSocketHandlers() {
 		await db.setObjectField(NOTIFY_PREFS_OBJECT, socket.uid, enabled ? '1' : '0');
 		return { ok: true };
 	};
+
+	// עריכת גמ"ח קיים - הבעלים (submittedBy) או מנהל בלבד. עובד גם על גמ"ח
+	// ממתין וגם על גמ"ח מאושר, בלי לשנות את הסטטוס שלו.
+	SocketPlugins.gemachDirectory.edit = async function (socket, data) {
+		requireLogin(socket);
+		const id = data && data.id;
+		if (!id) throw new Error('[[error:invalid-data]]');
+
+		const gemach = await db.getObject(GEMACH_KEY(id));
+		if (!gemach) throw new Error('[[error:no-such-gemach]]');
+		await requireOwnerOrAdmin(socket, gemach);
+
+		const name = sanitizeText(data && data.name, MAX_LENGTHS.name);
+		const city = sanitizeText(data && data.city, MAX_LENGTHS.city);
+		const category = sanitizeText(data && data.category, MAX_LENGTHS.category);
+		const contact = sanitizeText(data && data.contact, MAX_LENGTHS.contact);
+		const description = sanitizeText(data && data.description, MAX_LENGTHS.description);
+
+		if (!name || !city || !category || !contact) {
+			throw new Error('[[error:invalid-data]]');
+		}
+
+		await db.setObject(GEMACH_KEY(id), { name, city, category, contact, description });
+		return { ok: true };
+	};
+
+	// מחיקת גמ"ח - הבעלים או מנהל בלבד. מוחק לגמרי מכל הרשימות (ממתין/מאושר).
+	SocketPlugins.gemachDirectory.remove = async function (socket, data) {
+		requireLogin(socket);
+		const id = data && data.id;
+		if (!id) throw new Error('[[error:invalid-data]]');
+
+		const gemach = await db.getObject(GEMACH_KEY(id));
+		if (!gemach) return { ok: true };
+		await requireOwnerOrAdmin(socket, gemach);
+
+		await db.sortedSetRemove(PENDING_SET, id);
+		await db.sortedSetRemove(APPROVED_SET, id);
+		await db.delete(GEMACH_KEY(id));
+
+		return { ok: true };
+	};
 }
 
 async function getGemachsFromSet(setKey, newestFirst) {
@@ -148,8 +196,27 @@ async function getGemachsFromSet(setKey, newestFirst) {
 		await db.getSortedSetRevRange(setKey, 0, -1) :
 		await db.getSortedSetRange(setKey, 0, -1);
 	if (!ids.length) return [];
-	const gemachs = await db.getObjects(ids.map(GEMACH_KEY));
-	return gemachs.filter(Boolean);
+	const gemachs = (await db.getObjects(ids.map(GEMACH_KEY))).filter(Boolean);
+	return attachSubmitterInfo(gemachs);
+}
+
+// מוסיף לכל גמ"ח את שם המשתמש (לקרדיט) ואת ה-userslug (לקישור לפרופיל)
+// של מי שהעלה אותו - כדי שהלקוח לא יצטרך שאילתת משתמש נפרדת לכל כרטיס.
+async function attachSubmitterInfo(gemachs) {
+	const uids = gemachs.map(g => g.submittedBy).filter(Boolean);
+	if (!uids.length) return gemachs;
+
+	const users = await user.getUsersFields(uids, ['uid', 'username', 'userslug']);
+	const byUid = {};
+	users.forEach((u) => { byUid[u.uid] = u; });
+
+	return gemachs.map((g) => {
+		const submitter = byUid[g.submittedBy];
+		return Object.assign({}, g, {
+			submittedByUsername: submitter ? submitter.username : null,
+			submittedByUserslug: submitter ? submitter.userslug : null,
+		});
+	});
 }
 
 async function notifyAdmins(gemach) {
@@ -180,6 +247,16 @@ function requireLogin(socket) {
 
 async function requireAdmin(socket) {
 	requireLogin(socket);
+	const isAdmin = await user.isAdministrator(socket.uid);
+	if (!isAdmin) {
+		throw new Error('[[error:no-privileges]]');
+	}
+}
+
+// מרשה גישה רק למי שהעלה את הגמ"ח הזה (submittedBy) או למנהל.
+async function requireOwnerOrAdmin(socket, gemach) {
+	requireLogin(socket);
+	if (String(gemach.submittedBy) === String(socket.uid)) return;
 	const isAdmin = await user.isAdministrator(socket.uid);
 	if (!isAdmin) {
 		throw new Error('[[error:no-privileges]]');

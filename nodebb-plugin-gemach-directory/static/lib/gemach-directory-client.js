@@ -76,6 +76,19 @@
 		}
 	}
 
+	function getMyUid() {
+		try {
+			return (window.app && app.user && app.user.uid) || 0;
+		} catch (e) {
+			return 0;
+		}
+	}
+
+	// בעל הגמ"ח (מי שהעלה אותו) או מנהל - אלה היחידים שרשאים לערוך/למחוק.
+	function canManage(g) {
+		return isAdmin() || (getMyUid() && String(g.submittedBy) === String(getMyUid()));
+	}
+
 	// ============ זיהוי נושא "רשימת גמחים" לפי הכותרת ============
 
 	// משאיר רק אותיות עבריות - מוריד כל סוג של גרש/מרכאות (יש כמה תווי
@@ -143,6 +156,9 @@
 			+ '#' + APP_ID + ' .gd-card:hover{transform:translateY(-4px);box-shadow:0 14px 26px rgba(20,20,30,.13);}'
 			+ '#' + APP_ID + ' .gd-card-title{font-size:15px;font-weight:700;color:#20232b;margin-bottom:6px;}'
 			+ '#' + APP_ID + ' .gd-card-desc{font-size:12.5px;color:#6b7078;margin-bottom:10px;line-height:1.5;}'
+			+ '#' + APP_ID + ' .gd-card-credit{font-size:11px;color:#9aa0a6;margin-bottom:8px;}'
+			+ '#' + APP_ID + ' .gd-card-credit a{color:var(--gd-accent-dark);text-decoration:none;font-weight:600;}'
+			+ '#' + APP_ID + ' .gd-card-credit a:hover{text-decoration:underline;}'
 			+ '#' + APP_ID + ' .gd-card-hint{font-size:11.5px;color:var(--gd-accent-dark);font-weight:600;opacity:.75;}'
 			+ '#' + APP_ID + ' .gd-empty{color:#9aa0a6;font-size:13.5px;padding:24px 0;text-align:center;}'
 			+ '#' + APP_ID + ' .gd-admin-bar{margin-bottom:12px;}'
@@ -200,7 +216,14 @@
 			+ 'padding:13px 16px;}'
 			+ '#' + DETAILS_ID + ' .gd-details-contact-label{display:block;font-size:11.5px;font-weight:700;'
 			+ 'color:var(--gd-accent-dark);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;}'
-			+ '#' + DETAILS_ID + ' .gd-details-contact-value{font-size:16px;font-weight:700;color:#20232b;}';
+			+ '#' + DETAILS_ID + ' .gd-details-contact-value{font-size:16px;font-weight:700;color:#20232b;}'
+			+ '#' + DETAILS_ID + ' .gd-card-credit{margin-top:12px;}'
+			+ '#' + DETAILS_ID + ' .gd-details-manage{display:flex;gap:10px;margin-top:16px;'
+			+ 'padding-top:14px;border-top:1px solid #edeef0;}'
+			+ '#' + DETAILS_ID + ' .gd-details-edit{flex:1;padding:9px;border-radius:9px;border:1px solid #e2e3e6;'
+			+ 'background:#fff;color:#20232b;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}'
+			+ '#' + DETAILS_ID + ' .gd-details-delete{flex:1;padding:9px;border-radius:9px;border:none;'
+			+ 'background:#fdecec;color:#a14444;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}';
 		var style = document.createElement('style');
 		style.id = STYLE_ID;
 		style.textContent = css;
@@ -241,21 +264,29 @@
 			+ '<div id="gd_sections"><div class="gd-empty">טוען...</div></div>';
 	}
 
-	function buildModalHTML() {
+	// existingGemach null = מצב "הוספה", אחרת "עריכה" עם השדות ממולאים מראש.
+	function buildModalHTML(existingGemach) {
+		var isEdit = !!existingGemach;
+		var isKnownCity = isEdit && CITIES.indexOf(existingGemach.city) !== -1;
 		return ''
-			+ '<h3>הוספת גמ"ח</h3>'
-			+ '<div class="gd-field"><label>שם הגמ"ח</label><input type="text" id="gd_f_name" maxlength="120"></div>'
+			+ '<h3>' + (isEdit ? 'עריכת גמ"ח' : 'הוספת גמ"ח') + '</h3>'
+			+ '<div class="gd-field"><label>שם הגמ"ח</label><input type="text" id="gd_f_name" maxlength="120" value="'
+			+ (isEdit ? escapeHtml(existingGemach.name) : '') + '"></div>'
 			+ '<div class="gd-field"><label>עיר</label>'
 			+ '<select id="gd_f_city"><option value="">בחרו עיר</option>' + optionsHTML(CITIES)
 			+ '<option value="' + OTHER_VALUE + '">עיר אחרת...</option></select>'
-			+ '<input type="text" id="gd_f_city_other" placeholder="הקלידו את שם העיר" style="margin-top:8px;display:none;">'
+			+ '<input type="text" id="gd_f_city_other" placeholder="הקלידו את שם העיר" style="margin-top:8px;'
+			+ (isEdit && !isKnownCity ? '' : 'display:none;') + '" value="'
+			+ (isEdit && !isKnownCity ? escapeHtml(existingGemach.city) : '') + '">'
 			+ '</div>'
 			+ '<div class="gd-field"><label>קטגוריה</label>'
 			+ '<select id="gd_f_category"><option value="">בחרו קטגוריה</option>' + optionsHTML(CATEGORIES) + '</select></div>'
-			+ '<div class="gd-field"><label>איש קשר / טלפון</label><input type="text" id="gd_f_contact" maxlength="120"></div>'
-			+ '<div class="gd-field"><label>תיאור קצר (רשות)</label><textarea id="gd_f_description" maxlength="500"></textarea></div>'
+			+ '<div class="gd-field"><label>איש קשר / טלפון</label><input type="text" id="gd_f_contact" maxlength="120" value="'
+			+ (isEdit ? escapeHtml(existingGemach.contact) : '') + '"></div>'
+			+ '<div class="gd-field"><label>תיאור קצר (רשות)</label><textarea id="gd_f_description" maxlength="500">'
+			+ (isEdit ? escapeHtml(existingGemach.description || '') : '') + '</textarea></div>'
 			+ '<div class="gd-actions">'
-			+ '<button type="button" class="gd-submit" id="gd_f_submit">שליחה לאישור</button>'
+			+ '<button type="button" class="gd-submit" id="gd_f_submit">' + (isEdit ? 'שמירת שינויים' : 'שליחה לאישור') + '</button>'
 			+ '<button type="button" class="gd-cancel" id="gd_f_cancel">ביטול</button>'
 			+ '</div>'
 			+ '<div class="gd-status" id="gd_f_status"></div>';
@@ -266,8 +297,20 @@
 			+ '<div class="gd-card" data-id="' + escapeHtml(g.id) + '">'
 			+ '<div class="gd-card-title">' + escapeHtml(g.name) + '</div>'
 			+ (g.description ? '<div class="gd-card-desc">' + escapeHtml(truncate(g.description, 80)) + '</div>' : '')
+			+ creditHTML(g)
 			+ '<div class="gd-card-hint">לחצו לפרטים ←</div>'
 			+ '</div>';
+	}
+
+	// קרדיט למי שהעלה את הגמ"ח - מוצג ישירות על הכרטיס (לא רק בפופ-אפ),
+	// עם קישור לפרופיל שלו אם יש userslug תקין.
+	function creditHTML(g) {
+		if (!g.submittedByUsername) return '';
+		var label = '@' + escapeHtml(g.submittedByUsername);
+		var inner = g.submittedByUserslug ?
+			'<a href="/user/' + escapeHtml(g.submittedByUserslug) + '" onclick="event.stopPropagation();">' + label + '</a>' :
+			label;
+		return '<div class="gd-card-credit">הועלה ע"י ' + inner + '</div>';
 	}
 
 	function pendingRowHTML(g) {
@@ -298,9 +341,10 @@
 		if (subtitleEl) subtitleEl.textContent = theme.subtitle;
 	}
 
-	function openDetailsModal(g) {
+	function openDetailsModal(g, root, socket) {
 		if (document.getElementById(DETAILS_ID + '-overlay')) return;
 		var theme = ACCENTS[g.category] || ACCENT_DEFAULT;
+		var manageable = canManage(g);
 
 		var overlay = document.createElement('div');
 		overlay.id = DETAILS_ID + '-overlay';
@@ -320,7 +364,13 @@
 			+ '<div class="gd-details-contact">'
 			+ '<span class="gd-details-contact-label">איש קשר</span>'
 			+ '<span class="gd-details-contact-value">' + escapeHtml(g.contact) + '</span>'
-			+ '</div>';
+			+ '</div>'
+			+ creditHTML(g)
+			+ (manageable ?
+				'<div class="gd-details-manage">'
+				+ '<button type="button" class="gd-details-edit" id="gd_details_edit">עריכה</button>'
+				+ '<button type="button" class="gd-details-delete" id="gd_details_delete">מחיקה</button>'
+				+ '</div>' : '');
 		overlay.appendChild(modal);
 		document.body.appendChild(overlay);
 
@@ -330,11 +380,29 @@
 		modal.querySelector('#gd_details_close').addEventListener('click', function () {
 			overlay.remove();
 		});
+
+		if (manageable) {
+			modal.querySelector('#gd_details_edit').addEventListener('click', function () {
+				overlay.remove();
+				openGemachModal(root, socket, g, function () { loadApprovedList(root, socket); });
+			});
+			modal.querySelector('#gd_details_delete').addEventListener('click', function () {
+				if (!window.confirm('למחוק לגמרי את "' + g.name + '"? אי אפשר לשחזר.')) return;
+				socket.emit('plugins.gemachDirectory.remove', { id: g.id }, function (err) {
+					if (err) {
+						window.alert('שגיאה במחיקה - נסו שוב.');
+						return;
+					}
+					overlay.remove();
+					loadApprovedList(root, socket);
+				});
+			});
+		}
 	}
 
 	// מציג את הגמ"חים של הקטגוריה הפעילה (הלשונית הנבחרת) בלבד, מחולקים
 	// לפי עיר. לחיצה על כרטיס פותחת חלונית פרטים מלאה.
-	function renderList(root) {
+	function renderList(root, socket) {
 		var sectionsEl = root.querySelector('#gd_sections');
 		var cityFilter = root.querySelector('#gd_filter_city').value;
 		var searchTerm = root.querySelector('#gd_search').value.trim();
@@ -371,7 +439,7 @@
 			card.addEventListener('click', function () {
 				var id = card.getAttribute('data-id');
 				var match = currentGemachs.filter(function (x) { return String(x.id) === id; })[0];
-				if (match) openDetailsModal(match);
+				if (match) openDetailsModal(match, root, socket);
 			});
 		});
 	}
@@ -383,7 +451,7 @@
 				return;
 			}
 			currentGemachs = gemachs || [];
-			renderList(root);
+			renderList(root, socket);
 		});
 	}
 
@@ -442,14 +510,18 @@
 		});
 	}
 
-	function openAddModal(root, socket) {
+	// existingGemach null = פתיחת טופס "הוספה" חדש; אחרת פתיחת אותו טופס
+	// במצב "עריכה" (ממולא מראש, שולח plugins.gemachDirectory.edit במקום
+	// submit). afterSave נקרא אחרי שמירה מוצלחת (לרענון הרשימה/סגירת פרטים).
+	function openGemachModal(root, socket, existingGemach, afterSave) {
 		if (document.getElementById(MODAL_ID + '-overlay')) return;
+		var isEdit = !!existingGemach;
 
 		var overlay = document.createElement('div');
 		overlay.id = MODAL_ID + '-overlay';
 		var modal = document.createElement('div');
 		modal.id = MODAL_ID;
-		modal.innerHTML = buildModalHTML();
+		modal.innerHTML = buildModalHTML(existingGemach);
 		overlay.appendChild(modal);
 		document.body.appendChild(overlay);
 
@@ -465,16 +537,22 @@
 			otherInput.style.display = this.value === OTHER_VALUE ? 'block' : 'none';
 		});
 
-		// טופס ההוספה נפתח עם הקטגוריה של הלשונית שבה המשתמש נמצא כרגע -
-		// חוסך לו קליק מיותר, ואפשר עדיין לשנות.
 		var categorySelect = modal.querySelector('#gd_f_category');
-		categorySelect.value = currentCategory;
+		if (isEdit) {
+			categorySelect.value = existingGemach.category;
+			var citySelect = modal.querySelector('#gd_f_city');
+			if (CITIES.indexOf(existingGemach.city) !== -1) citySelect.value = existingGemach.city;
+			else citySelect.value = OTHER_VALUE;
+		} else {
+			// טופס הוספה חדש נפתח עם הקטגוריה של הלשונית הנוכחית - חוסך קליק.
+			categorySelect.value = currentCategory;
+		}
 
 		modal.querySelector('#gd_f_submit').addEventListener('click', function () {
 			var statusEl = modal.querySelector('#gd_f_status');
-			var citySelect = modal.querySelector('#gd_f_city').value;
-			var city = citySelect === OTHER_VALUE ?
-				modal.querySelector('#gd_f_city_other').value.trim() : citySelect;
+			var citySelectEl = modal.querySelector('#gd_f_city').value;
+			var city = citySelectEl === OTHER_VALUE ?
+				modal.querySelector('#gd_f_city_other').value.trim() : citySelectEl;
 
 			var data = {
 				name: modal.querySelector('#gd_f_name').value.trim(),
@@ -483,6 +561,7 @@
 				contact: modal.querySelector('#gd_f_contact').value.trim(),
 				description: modal.querySelector('#gd_f_description').value.trim(),
 			};
+			if (isEdit) data.id = existingGemach.id;
 
 			if (!data.name || !data.city || !data.category || !data.contact) {
 				statusEl.className = 'gd-status err';
@@ -491,16 +570,20 @@
 			}
 
 			statusEl.className = 'gd-status';
-			statusEl.textContent = 'שולח...';
-			socket.emit('plugins.gemachDirectory.submit', data, function (err) {
+			statusEl.textContent = isEdit ? 'שומר...' : 'שולח...';
+			socket.emit('plugins.gemachDirectory.' + (isEdit ? 'edit' : 'submit'), data, function (err) {
 				if (err) {
 					statusEl.className = 'gd-status err';
-					statusEl.textContent = 'שגיאה בשליחה - נסו שוב.';
+					statusEl.textContent = 'שגיאה בשמירה - נסו שוב.';
 					return;
 				}
 				statusEl.className = 'gd-status ok';
-				statusEl.textContent = 'נשלח בהצלחה! הגמ"ח יופיע ברשימה לאחר אישור מנהל.';
-				setTimeout(function () { overlay.remove(); }, 1800);
+				statusEl.textContent = isEdit ?
+					'נשמר בהצלחה!' : 'נשלח בהצלחה! הגמ"ח יופיע ברשימה לאחר אישור מנהל.';
+				setTimeout(function () {
+					overlay.remove();
+					if (afterSave) afterSave();
+				}, isEdit ? 800 : 1800);
 			});
 		});
 	}
@@ -530,13 +613,15 @@
 				app.querySelectorAll('#gd_tabs .gd-tab').forEach(function (t) { t.classList.remove('active'); });
 				tab.classList.add('active');
 				applyAccent(app, currentCategory);
-				renderList(app);
+				renderList(app, socket);
 			});
 		});
 
-		app.querySelector('#gd_filter_city').addEventListener('change', function () { renderList(app); });
-		app.querySelector('#gd_search').addEventListener('input', function () { renderList(app); });
-		app.querySelector('#gd_open_add').addEventListener('click', function () { openAddModal(app, socket); });
+		app.querySelector('#gd_filter_city').addEventListener('change', function () { renderList(app, socket); });
+		app.querySelector('#gd_search').addEventListener('input', function () { renderList(app, socket); });
+		app.querySelector('#gd_open_add').addEventListener('click', function () {
+			openGemachModal(app, socket, null, function () { loadApprovedList(app, socket); });
+		});
 
 		loadApprovedList(app, socket);
 		loadPendingPanel(app, socket);
