@@ -29,7 +29,7 @@
 (function () {
 	'use strict';
 
-	var CITIES = ['ירושלים', 'בני ברק', 'מודיעין עילית', 'ביתר עילית', 'אלעד', 'אשדוד', 'צפת', 'רכסים'];
+	var CITIES = ['ירושלים', 'בני ברק', 'מודיעין עילית', 'ביתר עילית', 'אלעד', 'אשדוד', 'צפת', 'רכסים', 'נתיבות', 'אופקים'];
 	// כרגע רק שתי קטגוריות (=שתי הלשוניות) - להוסיף עוד: מוסיפים מחרוזת
 	// ל-CATEGORIES *וגם* ערכת צבע תואמת ב-ACCENTS למטה, ומפרסמים מחדש.
 	var CATEGORIES = ['כלי עבודה', 'וויז'];
@@ -40,11 +40,11 @@
 	var ACCENTS = {
 		'כלי עבודה': {
 			accent: '#d97706', dark: '#92400e', soft: '#fdf1e2',
-			subtitle: 'השאילו וקבלו כלי עבודה לרכב מהקהילה - בחינם ובקלות.',
+			subtitle: 'ריכוז כל גמ"ח כלי עבודה לרכב מכל רחבי הארץ בצורה מסודרת ומאירת עיניים.',
 		},
 		'וויז': {
 			accent: '#2563eb', dark: '#1e3a8a', soft: '#e9f0ff',
-			subtitle: 'מכשירי ניווט וסלולרי עם וויז - להשאלה בין חברי הקהילה.',
+			subtitle: 'ריכוז של גמ"ח וויז מכל רחבי הארץ בצורה מסודרת ומאירת עיניים.',
 		},
 	};
 	var ACCENT_DEFAULT = { accent: '#6b7280', dark: '#374151', soft: '#f2f3f5', subtitle: 'ציוד לרכב להשאלה בקהילה.' };
@@ -251,7 +251,7 @@
 	function buildAppShellHTML() {
 		return ''
 			+ '<div class="gd-hero">'
-			+ '<h2 class="gd-hero-title">רשימת הגמ"חים לרכב</h2>'
+			+ '<h2 class="gd-hero-title">כאן ירוכז בצורה מסודרת ומפורטת כל הגמחי"ם השונים הקיימים בפורום. הנכם מוזמנים להוסיף - כל בקשה תאושר ע"י ההנהלה. המטרה היא להנגיש את כל הגמחי"ם שיש בפורום בצורה מסודרת.</h2>'
 			+ '<p class="gd-hero-sub" id="gd_hero_sub"></p>'
 			+ '<button type="button" class="gd-add-btn" id="gd_open_add">+ הוספת גמ"ח</button>'
 			+ '</div>'
@@ -465,7 +465,7 @@
 		panel.innerHTML = ''
 			+ '<div class="gd-admin-bar">'
 			+ '<label class="gd-notify-toggle">'
-			+ '<input type="checkbox" id="gd_notify_toggle" checked> קבלת התראות אליי על הצעות גמ"ח חדשות'
+			+ '<input type="checkbox" id="gd_notify_toggle" checked> קבלת התראות אליי על הצעות גמ"ח חדשות (שורה זו מוצגת למנהלים בלבד)'
 			+ '</label>'
 			+ '</div>'
 			+ '<div id="gd_pending_list"></div>';
