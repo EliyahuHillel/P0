@@ -226,15 +226,25 @@
 			+ 'background:#fdecec;color:#a14444;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}'
 			// עיצוב שורת הנושא ברשימות (נושאים אחרונים/קטגוריה/לא נקראו) - לא
 			// קשור ל-#gemach-directory-app כי זה רץ מחוץ לעמוד הנושא עצמו.
-			+ '.gd-list-wrapper{border:1.5px solid rgba(67,56,202,.35);border-radius:12px;'
-			+ 'background:#f5f6fe;margin:6px 0;overflow:hidden;}'
+			+ '.gd-list-wrapper{border:1.5px solid rgba(67,56,202,.35);border-top:3px solid #4338ca;'
+			+ 'border-radius:12px;background:#f5f6fe;margin:8px 0;overflow:hidden;'
+			+ 'box-shadow:0 2px 8px rgba(67,56,202,.08);'
+			+ 'transition:box-shadow .2s ease,transform .2s ease;}'
+			+ '.gd-list-wrapper:hover{box-shadow:0 8px 18px rgba(67,56,202,.16);transform:translateY(-1px);}'
 			+ '.gd-list-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;'
-			+ 'padding:9px 16px;background:#eceefc;font-family:Rubik,Arial,sans-serif;direction:rtl;}'
-			+ '.gd-list-footer-label{font-size:12.5px;color:#4338ca;font-weight:700;}'
+			+ 'padding:10px 16px;background:linear-gradient(90deg,#eceefc,#f5f6fe);'
+			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;}'
+			+ '.gd-list-count{display:flex;align-items:center;gap:9px;}'
+			+ '.gd-list-count-number{display:inline-flex;align-items:center;justify-content:center;'
+			+ 'min-width:32px;height:32px;padding:0 9px;border-radius:16px;'
+			+ 'background:linear-gradient(135deg,#4338ca,#5b4fe0);color:#fff;font-weight:800;font-size:14.5px;'
+			+ 'box-shadow:0 3px 9px rgba(67,56,202,.4);}'
+			+ '.gd-list-count-text{font-size:12.5px;color:#4338ca;font-weight:700;}'
 			+ '.gd-list-add-btn{padding:7px 16px;border-radius:18px;border:none;background:#4338ca;'
 			+ 'color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit;'
-			+ 'box-shadow:0 4px 10px rgba(67,56,202,.28);white-space:nowrap;}'
-			+ '.gd-list-add-btn:hover{background:#372ea8;}';
+			+ 'box-shadow:0 4px 10px rgba(67,56,202,.28);white-space:nowrap;'
+			+ 'transition:background .15s ease,transform .15s ease;}'
+			+ '.gd-list-add-btn:hover{background:#372ea8;transform:translateY(-1px);}';
 		var style = document.createElement('style');
 		style.id = STYLE_ID;
 		style.textContent = css;
@@ -667,14 +677,17 @@
 
 			var footer = document.createElement('div');
 			footer.className = 'gd-list-footer';
-			footer.innerHTML = '<span class="gd-list-footer-label">גמ"חים לרכב - וויז וכלי עבודה</span>'
+			footer.innerHTML = '<div class="gd-list-count">'
+				+ '<span class="gd-list-count-number">…</span>'
+				+ '<span class="gd-list-count-text">גמ"חים ברשימה - וויז וכלי עבודה</span>'
+				+ '</div>'
 				+ '<button type="button" class="gd-list-add-btn">+ הוספת גמ"ח</button>';
 			wrapper.appendChild(footer);
 
-			var labelEl = footer.querySelector('.gd-list-footer-label');
+			var countNumEl = footer.querySelector('.gd-list-count-number');
 			socket.emit('plugins.gemachDirectory.listApproved', {}, function (err, list) {
 				if (err || !list) return;
-				labelEl.textContent = 'ברשימה כרגע ' + list.length + ' גמ"חים - וויז וכלי עבודה';
+				countNumEl.textContent = list.length;
 			});
 
 			footer.querySelector('.gd-list-add-btn').addEventListener('click', function (e) {
