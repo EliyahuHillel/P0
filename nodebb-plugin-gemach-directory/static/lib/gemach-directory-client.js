@@ -223,7 +223,18 @@
 			+ '#' + DETAILS_ID + ' .gd-details-edit{flex:1;padding:9px;border-radius:9px;border:1px solid #e2e3e6;'
 			+ 'background:#fff;color:#20232b;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}'
 			+ '#' + DETAILS_ID + ' .gd-details-delete{flex:1;padding:9px;border-radius:9px;border:none;'
-			+ 'background:#fdecec;color:#a14444;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}';
+			+ 'background:#fdecec;color:#a14444;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}'
+			// עיצוב שורת הנושא ברשימות (נושאים אחרונים/קטגוריה/לא נקראו) - לא
+			// קשור ל-#gemach-directory-app כי זה רץ מחוץ לעמוד הנושא עצמו.
+			+ '.gd-list-wrapper{border:1.5px solid rgba(67,56,202,.35);border-radius:12px;'
+			+ 'background:#f5f6fe;margin:6px 0;overflow:hidden;}'
+			+ '.gd-list-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;'
+			+ 'padding:9px 16px;background:#eceefc;font-family:Rubik,Arial,sans-serif;direction:rtl;}'
+			+ '.gd-list-footer-label{font-size:12.5px;color:#4338ca;font-weight:700;}'
+			+ '.gd-list-add-btn{padding:7px 16px;border-radius:18px;border:none;background:#4338ca;'
+			+ 'color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit;'
+			+ 'box-shadow:0 4px 10px rgba(67,56,202,.28);white-space:nowrap;}'
+			+ '.gd-list-add-btn:hover{background:#372ea8;}';
 		var style = document.createElement('style');
 		style.id = STYLE_ID;
 		style.textContent = css;
@@ -627,12 +638,51 @@
 		loadPendingPanel(app, socket);
 	}
 
+	// מוסיף עיצוב מיוחד + כפתור "הוספת גמ"ח" ישירות על שורת הנושא "רשימת
+	// גמחים" בכל עמוד רשימה (נושאים אחרונים/קטגוריה/לא נקראו וכו') - בלי
+	// צורך להיכנס לנושא עצמו. עוטף את השורה המקורית (בלי לגעת בתוכן שלה)
+	// בתוך "מסגרת" מודגשת, ומוסיף מתחתיה פס עם הכפתור.
+	function injectListRowButton() {
+		var socket = getSocket();
+		if (!socket) return;
+
+		var rows = document.querySelectorAll('[component="category/topic"]:not([data-gd-enhanced]), li[data-tid]:not([data-gd-enhanced])');
+		rows.forEach(function (row) {
+			var lettersOnly = hebrewLettersOnly(row.textContent || '');
+			if (lettersOnly.indexOf('רשימ') === -1 || lettersOnly.indexOf('גמח') === -1) return;
+			if (!row.parentNode) return;
+			row.setAttribute('data-gd-enhanced', '1');
+
+			var wrapper = document.createElement('div');
+			wrapper.className = 'gd-list-wrapper';
+			row.parentNode.insertBefore(wrapper, row);
+			wrapper.appendChild(row);
+
+			var footer = document.createElement('div');
+			footer.className = 'gd-list-footer';
+			footer.innerHTML = '<span class="gd-list-footer-label">גמ"חים לרכב - וויז וכלי עבודה</span>'
+				+ '<button type="button" class="gd-list-add-btn">+ הוספת גמ"ח</button>';
+			wrapper.appendChild(footer);
+
+			footer.querySelector('.gd-list-add-btn').addEventListener('click', function (e) {
+				e.preventDefault();
+				e.stopPropagation();
+				openGemachModal(null, socket, null, function () {});
+			});
+		});
+	}
+
 	function onPageChange() {
+		injectStyles();
 		injectDirectory();
+		injectListRowButton();
 	}
 
 	if (window.$) {
-		$(window).on('action:ajaxify.end', onPageChange);
+		// action:ajaxify.end - מעבר עמוד רגיל. action:topics.loaded - טעינת
+		// עוד שורות בגלילה אינסופית (רשימות "נושאים אחרונים" וכו') בלי
+		// מעבר עמוד מלא - גם אז צריך לבדוק אם נטענה שורת "רשימת גמחים" חדשה.
+		$(window).on('action:ajaxify.end action:topics.loaded', onPageChange);
 	}
 	document.addEventListener('DOMContentLoaded', onPageChange);
 	onPageChange();
