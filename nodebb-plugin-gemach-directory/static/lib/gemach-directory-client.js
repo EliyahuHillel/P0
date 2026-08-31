@@ -636,6 +636,13 @@
 
 		loadApprovedList(app, socket);
 		loadPendingPanel(app, socket);
+
+		// מנהל שנכנס לנושא כבר רואה את כל הבקשות הממתינות בעמוד הזה עצמו -
+		// אז ההתראות (הפעמון) של "גמ"ח חדש ממתין" מתאפסות אוטומטית. נוגע
+		// רק בהתראות מהסוג הזה, לא בשום התראה אחרת של המנהל.
+		if (isAdmin()) {
+			socket.emit('plugins.gemachDirectory.markPendingNotificationsRead', {}, function () {});
+		}
 	}
 
 	// מוסיף עיצוב מיוחד + כפתור "הוספת גמ"ח" ישירות על שורת הנושא "רשימת
@@ -663,6 +670,12 @@
 			footer.innerHTML = '<span class="gd-list-footer-label">גמ"חים לרכב - וויז וכלי עבודה</span>'
 				+ '<button type="button" class="gd-list-add-btn">+ הוספת גמ"ח</button>';
 			wrapper.appendChild(footer);
+
+			var labelEl = footer.querySelector('.gd-list-footer-label');
+			socket.emit('plugins.gemachDirectory.listApproved', {}, function (err, list) {
+				if (err || !list) return;
+				labelEl.textContent = 'ברשימה כרגע ' + list.length + ' גמ"חים - וויז וכלי עבודה';
+			});
 
 			footer.querySelector('.gd-list-add-btn').addEventListener('click', function (e) {
 				e.preventDefault();

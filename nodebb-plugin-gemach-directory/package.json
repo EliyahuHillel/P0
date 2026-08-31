@@ -1,6 +1,6 @@
 {
   "name": "nodebb-plugin-gemach-directory",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Server-side storage + admin approval queue for a community gemach directory, filterable by city and category.",
   "main": "library.js",
   "keywords": [

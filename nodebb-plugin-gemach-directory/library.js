@@ -41,6 +41,10 @@ const GEMACH_KEY = id => `gemachDirectory:item:${id}`;
 // מפה של uid -> '0'/'1' - האם המנהל הזה רוצה לקבל התראות על גמ"חים חדשים.
 // חסר מפתח = כברירת מחדל כן (כדי שמנהלים קיימים לא "יפספסו" בלי לשים לב).
 const NOTIFY_PREFS_OBJECT = 'gemachDirectory:notifyPrefs';
+// הנתיב שאליו התראת "גמ"ח חדש ממתין" מפנה - הפוסט האמיתי של נושא "רשימת
+// גמחים" בפורום הזה. אם הנושא אי-פעם יימחק וייווצר מחדש, צריך לעדכן כאן
+// את מספר הפוסט (רואים אותו ב-URL כשפותחים את הנושא: /post/<המספר>).
+const NOTIFY_TARGET_PATH = '/post/151093';
 
 const MAX_LENGTHS = {
 	name: 120,
@@ -189,6 +193,18 @@ function registerSocketHandlers() {
 
 		return { ok: true };
 	};
+
+	// נקרא מהלקוח כשמנהל נכנס לנושא "רשימת גמחים" עצמו - מסמן כ"נקראו" רק
+	// את התראות ה"גמ"ח חדש ממתין" (לא נוגע בשום התראה אחרת של המנהל), כי
+	// הוא כבר רואה את כל הבקשות הממתינות ממש עכשיו בעמוד.
+	SocketPlugins.gemachDirectory.markPendingNotificationsRead = async function (socket) {
+		await requireAdmin(socket);
+		const ids = await db.getSortedSetRange(PENDING_SET, 0, -1);
+		if (!ids.length) return { ok: true };
+		const nids = ids.map(id => `gemach-directory:${id}`);
+		await notifications.markReadMultiple(nids, socket.uid);
+		return { ok: true };
+	};
 }
 
 async function getGemachsFromSet(setKey, newestFirst) {
@@ -233,7 +249,7 @@ async function notifyAdmins(gemach) {
 		// nid כולל את מזהה הגמ"ח - כך שכל הצעה חדשה היא התראה "חדשה" נפרדת
 		nid: `gemach-directory:${gemach.id}`,
 		bodyShort: `גמ"ח חדש ממתין לאישור: ${gemach.name} (${gemach.city})`,
-		path: '/',
+		path: NOTIFY_TARGET_PATH,
 		from: gemach.submittedBy,
 	});
 	await notifications.push(notification, targetUids);
