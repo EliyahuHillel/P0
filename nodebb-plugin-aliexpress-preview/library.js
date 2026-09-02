@@ -2,10 +2,10 @@
  * nodebb-plugin-aliexpress-preview
  *
  * מה זה עושה:
- * - כשמשתמש מרחף (או נוגע, במובייל) על קישור ל-aliexpress.com בתוך פוסט,
+ * - כשמשתמש לוחץ על סמל קטן שמופיע ליד קישור ל-aliexpress.com בתוך פוסט,
  *   קוד הלקוח (aliexpress-preview-client.js, בקובץ נפרד) שולח לשרת את
- *   כתובת הקישור, והשרת מחזיר תקציר - שם המוצר ותמונה - שנקרא מתגיות
- *   ה-og: הסטנדרטיות של דף המוצר.
+ *   כתובת הקישור, והשרת מחזיר תקציר - שם המוצר, תמונה, ומחיר (אם נמצא) -
+ *   שנקרא מתגיות ה-og: הסטנדרטיות ומ"נתונים מובנים" (JSON-LD) של דף המוצר.
  * - כל קישור נשלף מעלי אקספרס **פעם אחת בלבד לתמיד** (לא בכל ריחוף, לא
  *   לכל משתמש בנפרד) - התוצאה נשמרת במסד הנתונים של הפורום ומשם והלאה
  *   נשלפת משם ישירות, בלי לגעת בעלי אקספרס שוב.
@@ -29,7 +29,8 @@ const SocketPlugins = require.main.require('./src/socket.io/plugins');
 const CACHE_PREFIX = 'aliexpressPreview:cache:';
 const ALLOWED_HOST_SUFFIX = 'aliexpress.com';
 const FETCH_TIMEOUT_MS = 8000;
-const MAX_BYTES = 200 * 1024; // מספיק בהרבה כדי לכלול את ה-<head> עם תגיות ה-og:
+// גדול יותר מרק ה-<head> - נתוני המחיר (JSON-LD) לפעמים יושבים רחוק יותר בדף.
+const MAX_BYTES = 600 * 1024;
 const MAX_REDIRECTS = 5;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
 	+ '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -84,7 +85,8 @@ function registerSocketHandlers() {
 		const fetchPromise = (async () => {
 			try {
 				const html = await fetchHtmlSnippet(parsed);
-				const preview = parseOgTags(html) || { title: null, image: null, description: null };
+				const preview = parseOgTags(html) ||
+					{ title: null, image: null, description: null, price: null, currency: null };
 				await db.setObject(cacheKey, preview);
 				return preview;
 			} finally {
@@ -198,6 +200,7 @@ function parseOgTags(html) {
 	const title = extractMetaContent(html, 'og:title') || extractTitleTag(html);
 	const image = extractMetaContent(html, 'og:image');
 	const description = extractMetaContent(html, 'og:description');
+	const priceInfo = extractPrice(html);
 
 	if (!title && !image) return null;
 
@@ -205,7 +208,65 @@ function parseOgTags(html) {
 		title: title ? truncate(decodeHtmlEntities(title), 200) : null,
 		image: image || null,
 		description: description ? truncate(decodeHtmlEntities(description), 300) : null,
+		price: priceInfo ? priceInfo.price : null,
+		currency: priceInfo ? priceInfo.currency : null,
 	};
+}
+
+// מנסה שני מקורות סטנדרטיים למחיר - קודם "נתונים מובנים" (JSON-LD, תקן
+// שאתרי מסחר כוללים בשביל תוצאות עשירות בגוגל), ואם אין - תגיות
+// product:price:amount/currency (הרחבת Open Graph נפוצה לאתרי מסחר).
+// אם שניהם לא נמצאים - פשוט אין מחיר, בלי שגיאה.
+function extractPrice(html) {
+	const jsonLd = extractPriceFromJsonLd(html);
+	if (jsonLd) return jsonLd;
+
+	const amount = extractMetaContent(html, 'product:price:amount');
+	const currency = extractMetaContent(html, 'product:price:currency');
+	if (amount) return { price: amount, currency: currency || null };
+
+	return null;
+}
+
+function extractPriceFromJsonLd(html) {
+	const scriptRe = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+	let match;
+	while ((match = scriptRe.exec(html)) !== null) {
+		let data;
+		try {
+			data = JSON.parse(match[1]);
+		} catch (e) {
+			continue; // JSON-LD לפעמים לא-תקין בפועל - פשוט מדלגים על הבלוק הזה.
+		}
+
+		const candidates = Array.isArray(data) ? data : [data];
+		for (const item of candidates) {
+			const found = findProductOffer(item);
+			if (found) return found;
+		}
+	}
+	return null;
+}
+
+function findProductOffer(node) {
+	if (!node || typeof node !== 'object') return null;
+
+	if (node['@graph'] && Array.isArray(node['@graph'])) {
+		for (const child of node['@graph']) {
+			const found = findProductOffer(child);
+			if (found) return found;
+		}
+	}
+
+	const type = node['@type'];
+	const isProduct = type === 'Product' || (Array.isArray(type) && type.includes('Product'));
+	if (isProduct && node.offers) {
+		const offer = Array.isArray(node.offers) ? node.offers[0] : node.offers;
+		if (offer && offer.price) {
+			return { price: String(offer.price), currency: offer.priceCurrency || null };
+		}
+	}
+	return null;
 }
 
 // תומך גם ב-<meta property="og:x" content="..."> וגם בסדר הפוך של המאפיינים.

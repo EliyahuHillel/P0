@@ -7,29 +7,23 @@
  *
  * מה זה עושה:
  * כל קישור בתוך פוסט שמצביע ל-aliexpress.com (בכל תת-דומיין, למשל
- * he.aliexpress.com) מקבל אוטומטית "וו" (hook) - במחשב: ריחוף של כשליש
- * שנייה מעל הקישור פותח חלונית קטנה עם שם המוצר ותמונה שלו (נשלף פעם
- * אחת מהשרת ונשמר בזיכרון הדף כדי לא לשלוח בקשה כפולה לאותו קישור).
- * בנייד (שאין בו "ריחוף" אמיתי): הקשה ראשונה על קישור כזה פותחת את
- * החלונית במקום לנווט מיד, הקשה שנייה (או על "פתח באתר") ממשיכה לקישור.
+ * he.aliexpress.com) מקבל אוטומטית סמל קטן (זכוכית מגדלת) שמופיע צמוד
+ * לקישור, בצד הימני שלו. לחיצה על הסמל (לא על הקישור עצמו - הקישור ממשיך
+ * לעבוד כרגיל) פותחת חלונית קטנה עם תמונת המוצר, שמו, ומחירו (אם נמצא).
+ * עובד זהה בדיוק במחשב ובנייד, כי זו לחיצה רגילה ולא ריחוף.
  */
 (function () {
 	'use strict';
 
 	var TOOLTIP_ID = 'aep-tooltip';
 	var STYLE_ID = 'aep-preview-style';
-	var HOVER_DELAY_MS = 350;
-	var IS_TOUCH = (function () {
-		try {
-			return window.matchMedia && window.matchMedia('(hover: none)').matches;
-		} catch (e) {
-			return false;
-		}
-	})();
+	var ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" '
+		+ 'stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"></circle>'
+		+ '<line x1="20" y1="20" x2="15.5" y2="15.5"></line></svg>';
 
 	var previewCache = {};
-	var hoverTimer = null;
 	var currentTooltip = null;
+	var currentHref = null;
 
 	function escapeHtml(str) {
 		var div = document.createElement('div');
@@ -55,13 +49,19 @@
 	function injectStyles() {
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
-			+ '#' + TOOLTIP_ID + '{position:fixed;z-index:9999;max-width:250px;background:#fff;'
+			+ '.aep-icon-btn{display:inline-flex;align-items:center;justify-content:center;'
+			+ 'width:20px;height:20px;margin:0 4px;border-radius:50%;border:1px solid #d8dadd;'
+			+ 'background:#f5f6f7;color:#6b7078;cursor:pointer;vertical-align:middle;padding:0;'
+			+ 'transition:background .15s ease,color .15s ease,border-color .15s ease;}'
+			+ '.aep-icon-btn:hover{background:#e8580c;border-color:#e8580c;color:#fff;}'
+			+ '#' + TOOLTIP_ID + '{position:fixed;z-index:9999;width:230px;background:#fff;'
 			+ 'border-radius:14px;box-shadow:0 14px 32px rgba(20,20,30,.22);padding:12px;'
 			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;border:1px solid #eee;}'
 			+ '#' + TOOLTIP_ID + ' .aep-img{width:100%;max-height:130px;object-fit:cover;'
 			+ 'border-radius:9px;margin-bottom:8px;display:block;background:#f2f2f2;}'
 			+ '#' + TOOLTIP_ID + ' .aep-title{font-size:12.5px;font-weight:600;color:#20232b;'
 			+ 'line-height:1.5;margin-bottom:6px;}'
+			+ '#' + TOOLTIP_ID + ' .aep-price{font-size:14px;font-weight:800;color:#e8580c;margin-bottom:8px;}'
 			+ '#' + TOOLTIP_ID + ' .aep-loading{font-size:12px;color:#9aa0a6;}'
 			+ '#' + TOOLTIP_ID + ' .aep-open{display:inline-block;font-size:11.5px;font-weight:700;'
 			+ 'color:#fff;background:#e8580c;padding:5px 12px;border-radius:14px;text-decoration:none;}'
@@ -73,25 +73,31 @@
 	}
 
 	function hideTooltip() {
-		if (hoverTimer) {
-			clearTimeout(hoverTimer);
-			hoverTimer = null;
-		}
 		if (currentTooltip) {
 			currentTooltip.remove();
 			currentTooltip = null;
+			currentHref = null;
 		}
 	}
 
-	function positionTooltip(el, x, y) {
-		var margin = 12;
-		var rect = { width: 250, height: 200 }; // הערכה שמרנית, מספיקה כדי לא לחתוך את הקצה.
-		var left = Math.min(x + margin, window.innerWidth - rect.width - margin);
-		var top = Math.min(y + margin, window.innerHeight - rect.height - margin);
+	function positionTooltip(el, rect) {
+		var margin = 8;
+		var width = 230;
+		var height = 220; // הערכה שמרנית, מספיקה כדי לא לחתוך את הקצה.
+		var left = Math.min(rect.left, window.innerWidth - width - margin);
+		var top = rect.bottom + margin;
+		if (top + height > window.innerHeight) top = Math.max(margin, rect.top - height - margin);
 		left = Math.max(margin, left);
-		top = Math.max(margin, top);
 		el.style.left = left + 'px';
 		el.style.top = top + 'px';
+	}
+
+	var CURRENCY_SYMBOLS = { USD: '$', ILS: '₪', NIS: '₪', EUR: '€', GBP: '£' };
+
+	function formatPrice(price, currency) {
+		if (!price) return '';
+		var symbol = currency ? (CURRENCY_SYMBOLS[currency.toUpperCase()] || (currency.toUpperCase() + ' ')) : '';
+		return symbol + price;
 	}
 
 	function renderTooltipBody(el, href, preview) {
@@ -99,14 +105,21 @@
 			hideTooltip();
 			return;
 		}
+		var priceText = formatPrice(preview.price, preview.currency);
 		el.innerHTML = ''
 			+ (preview.image ? '<img class="aep-img" src="' + escapeHtml(preview.image) + '" alt="">' : '')
 			+ (preview.title ? '<div class="aep-title">' + escapeHtml(preview.title) + '</div>' : '')
+			+ (priceText ? '<div class="aep-price">' + escapeHtml(priceText) + '</div>' : '')
 			+ '<a class="aep-open" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">פתח באתר ↗</a>';
 	}
 
-	function showPreview(href, x, y) {
+	function showPreview(href, anchorRect) {
 		injectStyles();
+
+		if (currentTooltip && currentHref === href) {
+			hideTooltip(); // לחיצה שנייה על אותו סמל - סוגר את החלונית.
+			return;
+		}
 		hideTooltip();
 
 		var socket = getSocket();
@@ -117,7 +130,8 @@
 		tooltip.innerHTML = '<div class="aep-loading">טוען תקציר מוצר...</div>';
 		document.body.appendChild(tooltip);
 		currentTooltip = tooltip;
-		positionTooltip(tooltip, x, y);
+		currentHref = href;
+		positionTooltip(tooltip, anchorRect);
 
 		if (previewCache[href]) {
 			renderTooltipBody(tooltip, href, previewCache[href]);
@@ -125,8 +139,7 @@
 		}
 
 		socket.emit('plugins.aliexpressPreview.getPreview', { url: href }, function (err, preview) {
-			// אם המשתמש כבר הזיז את העכבר משם עד שהתשובה הגיעה - אל תציג כלום.
-			if (currentTooltip !== tooltip) return;
+			if (currentTooltip !== tooltip) return; // המשתמש כבר סגר/פתח משהו אחר בינתיים.
 			if (err || !preview) {
 				hideTooltip();
 				return;
@@ -141,26 +154,21 @@
 		anchor.setAttribute('data-aep-bound', '1');
 
 		var href = anchor.href;
+		var icon = document.createElement('button');
+		icon.type = 'button';
+		icon.className = 'aep-icon-btn';
+		icon.innerHTML = ICON_SVG;
+		icon.title = 'תקציר מוצר';
+		icon.setAttribute('aria-label', 'הצג תקציר מוצר');
 
-		if (IS_TOUCH) {
-			anchor.addEventListener('click', function (e) {
-				if (anchor.getAttribute('data-aep-shown') === '1') return; // הקשה שנייה - ניווט רגיל
-				e.preventDefault();
-				anchor.setAttribute('data-aep-shown', '1');
-				showPreview(href, e.clientX || 0, e.clientY || 0);
-			});
-			return;
-		}
+		// הכנסה *לפני* הקישור ב-DOM - בעמוד ימני-לשמאלי (RTL) זה גורם לסמל
+		// להופיע בצד הימני של הקישור (הראשון ב-DOM = הכי ימני ב-RTL).
+		anchor.parentNode.insertBefore(icon, anchor);
 
-		anchor.addEventListener('mouseenter', function (e) {
-			var clientX = e.clientX;
-			var clientY = e.clientY;
-			hoverTimer = setTimeout(function () {
-				showPreview(href, clientX, clientY);
-			}, HOVER_DELAY_MS);
-		});
-		anchor.addEventListener('mouseleave', function () {
-			hideTooltip();
+		icon.addEventListener('click', function (e) {
+			e.preventDefault();
+			e.stopPropagation();
+			showPreview(href, icon.getBoundingClientRect());
 		});
 	}
 

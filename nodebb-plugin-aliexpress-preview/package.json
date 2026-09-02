@@ -1,7 +1,7 @@
 {
   "name": "nodebb-plugin-aliexpress-preview",
-  "version": "1.0.0",
-  "description": "Hover-preview tooltip for AliExpress links in posts - server fetches and caches the product title/image once per URL.",
+  "version": "1.1.0",
+  "description": "Click-to-preview tooltip for AliExpress links in posts - server fetches and caches the product title/image/price once per URL.",
   "main": "library.js",
   "keywords": [
     "nodebb",
