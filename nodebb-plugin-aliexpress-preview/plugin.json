@@ -1,0 +1,9 @@
+{
+  "id": "nodebb-plugin-aliexpress-preview",
+  "name": "AliExpress Link Preview",
+  "description": "Server-side fetch + cache of AliExpress product title/image for hover-preview tooltips shown by the paired Custom JS.",
+  "library": "./library.js",
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" }
+  ]
+}
