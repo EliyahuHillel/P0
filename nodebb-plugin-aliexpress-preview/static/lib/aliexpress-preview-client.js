@@ -24,6 +24,7 @@
 	var previewCache = {};
 	var currentTooltip = null;
 	var currentHref = null;
+	var currentIcon = null;
 
 	function escapeHtml(str) {
 		var div = document.createElement('div');
@@ -77,19 +78,25 @@
 			currentTooltip.remove();
 			currentTooltip = null;
 			currentHref = null;
+			currentIcon = null;
 		}
 	}
 
-	// ממקם לפי נקודת הלחיצה בפועל (לא לפי מדידת האלמנט) - ואז מודד את הגודל
-	// *האמיתי* שהחלונית תפסה אחרי שהיא כבר בדף, ומתקן את המיקום לפי זה. זה
-	// מונע חיתוך בקצה המסך גם אם הגובה משתנה (למשל אחרי שהתמונה נטענת).
-	function positionTooltip(el, x, y) {
+	// ממקם תמיד לפי המיקום *הנוכחי* של הסמל בדף (getBoundingClientRect נמדד
+	// מחדש בכל קריאה) - ולא לפי נקודת לחיצה קפואה. ככה, כשקוראים לפונקציה הזו
+	// שוב אחרי גלילה (ראו listener של scroll למטה), החלונית "עוקבת" אחרי
+	// הסמל/קישור בדיוק כמו שהוא זז על המסך. גם מודד את הגודל *האמיתי* שהחלונית
+	// תפסה אחרי שהיא כבר בדף (לא הערכה קבועה מראש) כדי למנוע חיתוך בקצה המסך.
+	function positionTooltip(el, icon) {
 		var margin = 10;
+		var iconRect = icon.getBoundingClientRect();
 		var rect = el.getBoundingClientRect();
 		var width = rect.width || 230;
 		var height = rect.height || 160;
+		var x = iconRect.left;
+		var y = iconRect.bottom;
 
-		// עברית/RTL - עדיף שהחלונית תיפתח משמאל לנקודת הלחיצה (כלומר "לתוך"
+		// עברית/RTL - עדיף שהחלונית תיפתח משמאל לנקודת העיגון (כלומר "לתוך"
 		// הדף), לא מימינה (שם היא לרוב תיחתך מחוץ למסך).
 		var left = x - width;
 		if (left < margin) left = x + margin;
@@ -112,7 +119,7 @@
 		return symbol + price;
 	}
 
-	function renderTooltipBody(el, href, preview, x, y) {
+	function renderTooltipBody(el, href, preview, icon) {
 		if (!preview || (!preview.title && !preview.image)) {
 			hideTooltip();
 			return;
@@ -126,16 +133,16 @@
 
 		// הגובה עשוי להשתנות (במיוחד אחרי טעינת התמונה) - ממקמים מחדש לפי
 		// הגודל האמיתי, ושוב ברגע שהתמונה עצמה סיימה להיטען.
-		positionTooltip(el, x, y);
+		positionTooltip(el, icon);
 		var img = el.querySelector('.aep-img');
 		if (img) {
 			img.addEventListener('load', function () {
-				if (currentTooltip === el) positionTooltip(el, x, y);
+				if (currentTooltip === el) positionTooltip(el, icon);
 			});
 		}
 	}
 
-	function showPreview(href, x, y) {
+	function showPreview(href, icon) {
 		injectStyles();
 
 		if (currentTooltip && currentHref === href) {
@@ -153,10 +160,11 @@
 		document.body.appendChild(tooltip);
 		currentTooltip = tooltip;
 		currentHref = href;
-		positionTooltip(tooltip, x, y);
+		currentIcon = icon;
+		positionTooltip(tooltip, icon);
 
 		if (previewCache[href]) {
-			renderTooltipBody(tooltip, href, previewCache[href], x, y);
+			renderTooltipBody(tooltip, href, previewCache[href], icon);
 			return;
 		}
 
@@ -167,7 +175,7 @@
 				return;
 			}
 			if (preview.title || preview.image) previewCache[href] = preview;
-			renderTooltipBody(tooltip, href, preview, x, y);
+			renderTooltipBody(tooltip, href, preview, icon);
 		});
 	}
 
@@ -190,12 +198,7 @@
 		icon.addEventListener('click', function (e) {
 			e.preventDefault();
 			e.stopPropagation();
-			// לפי נקודת הלחיצה בפועל, לא לפי מדידת האלמנט - עמיד יותר מול
-			// מבנה עמוד/עיצוב תבנית לא-צפוי.
-			var rect = icon.getBoundingClientRect();
-			var x = (typeof e.clientX === 'number' && e.clientX > 0) ? e.clientX : rect.left;
-			var y = (typeof e.clientY === 'number' && e.clientY > 0) ? e.clientY : rect.bottom;
-			showPreview(href, x, y);
+			showPreview(href, icon);
 		});
 	}
 
@@ -211,6 +214,22 @@
 	document.addEventListener('click', function (e) {
 		if (currentTooltip && !currentTooltip.contains(e.target)) hideTooltip();
 	});
+
+	// גורם לחלונית "לעקוב" אחרי הסמל שהיא שייכת לו כשגוללים את העמוד (כל
+	// גלילה - גם בתוך אזור פנימי הניתן לגלילה, בזכות capture:true בשלב
+	// הלכידה, ששם אירועי scroll נתפסים גם כשהם לא "מבעבעים"). מוגבל ל-
+	// requestAnimationFrame כדי לא להריץ מדידות פריסה בכל פריים של הגלילה.
+	var repositionScheduled = false;
+	function scheduleReposition() {
+		if (repositionScheduled || !currentTooltip || !currentIcon) return;
+		repositionScheduled = true;
+		requestAnimationFrame(function () {
+			repositionScheduled = false;
+			if (currentTooltip && currentIcon) positionTooltip(currentTooltip, currentIcon);
+		});
+	}
+	window.addEventListener('scroll', scheduleReposition, { passive: true, capture: true });
+	window.addEventListener('resize', scheduleReposition, { passive: true });
 
 	function onPageChange() {
 		scanLinks();
