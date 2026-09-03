@@ -54,7 +54,7 @@
 			+ 'background:#f5f6f7;color:#6b7078;cursor:pointer;vertical-align:middle;padding:0;'
 			+ 'transition:background .15s ease,color .15s ease,border-color .15s ease;}'
 			+ '.aep-icon-btn:hover{background:#e8580c;border-color:#e8580c;color:#fff;}'
-			+ '#' + TOOLTIP_ID + '{position:fixed;z-index:9999;width:230px;background:#fff;'
+			+ '#' + TOOLTIP_ID + '{position:fixed;z-index:2147483647;width:230px;background:#fff;'
 			+ 'border-radius:14px;box-shadow:0 14px 32px rgba(20,20,30,.22);padding:12px;'
 			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;border:1px solid #eee;}'
 			+ '#' + TOOLTIP_ID + ' .aep-img{width:100%;max-height:130px;object-fit:cover;'
@@ -80,14 +80,26 @@
 		}
 	}
 
-	function positionTooltip(el, rect) {
-		var margin = 8;
-		var width = 230;
-		var height = 220; // הערכה שמרנית, מספיקה כדי לא לחתוך את הקצה.
-		var left = Math.min(rect.left, window.innerWidth - width - margin);
-		var top = rect.bottom + margin;
-		if (top + height > window.innerHeight) top = Math.max(margin, rect.top - height - margin);
-		left = Math.max(margin, left);
+	// ממקם לפי נקודת הלחיצה בפועל (לא לפי מדידת האלמנט) - ואז מודד את הגודל
+	// *האמיתי* שהחלונית תפסה אחרי שהיא כבר בדף, ומתקן את המיקום לפי זה. זה
+	// מונע חיתוך בקצה המסך גם אם הגובה משתנה (למשל אחרי שהתמונה נטענת).
+	function positionTooltip(el, x, y) {
+		var margin = 10;
+		var rect = el.getBoundingClientRect();
+		var width = rect.width || 230;
+		var height = rect.height || 160;
+
+		// עברית/RTL - עדיף שהחלונית תיפתח משמאל לנקודת הלחיצה (כלומר "לתוך"
+		// הדף), לא מימינה (שם היא לרוב תיחתך מחוץ למסך).
+		var left = x - width;
+		if (left < margin) left = x + margin;
+		if (left + width > window.innerWidth - margin) left = window.innerWidth - width - margin;
+		if (left < margin) left = margin;
+
+		var top = y + margin;
+		if (top + height > window.innerHeight - margin) top = y - height - margin;
+		if (top < margin) top = margin;
+
 		el.style.left = left + 'px';
 		el.style.top = top + 'px';
 	}
@@ -100,7 +112,7 @@
 		return symbol + price;
 	}
 
-	function renderTooltipBody(el, href, preview) {
+	function renderTooltipBody(el, href, preview, x, y) {
 		if (!preview || (!preview.title && !preview.image)) {
 			hideTooltip();
 			return;
@@ -111,9 +123,19 @@
 			+ (preview.title ? '<div class="aep-title">' + escapeHtml(preview.title) + '</div>' : '')
 			+ (priceText ? '<div class="aep-price">' + escapeHtml(priceText) + '</div>' : '')
 			+ '<a class="aep-open" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">פתח באתר ↗</a>';
+
+		// הגובה עשוי להשתנות (במיוחד אחרי טעינת התמונה) - ממקמים מחדש לפי
+		// הגודל האמיתי, ושוב ברגע שהתמונה עצמה סיימה להיטען.
+		positionTooltip(el, x, y);
+		var img = el.querySelector('.aep-img');
+		if (img) {
+			img.addEventListener('load', function () {
+				if (currentTooltip === el) positionTooltip(el, x, y);
+			});
+		}
 	}
 
-	function showPreview(href, anchorRect) {
+	function showPreview(href, x, y) {
 		injectStyles();
 
 		if (currentTooltip && currentHref === href) {
@@ -131,10 +153,10 @@
 		document.body.appendChild(tooltip);
 		currentTooltip = tooltip;
 		currentHref = href;
-		positionTooltip(tooltip, anchorRect);
+		positionTooltip(tooltip, x, y);
 
 		if (previewCache[href]) {
-			renderTooltipBody(tooltip, href, previewCache[href]);
+			renderTooltipBody(tooltip, href, previewCache[href], x, y);
 			return;
 		}
 
@@ -145,7 +167,7 @@
 				return;
 			}
 			if (preview.title || preview.image) previewCache[href] = preview;
-			renderTooltipBody(tooltip, href, preview);
+			renderTooltipBody(tooltip, href, preview, x, y);
 		});
 	}
 
@@ -168,7 +190,12 @@
 		icon.addEventListener('click', function (e) {
 			e.preventDefault();
 			e.stopPropagation();
-			showPreview(href, icon.getBoundingClientRect());
+			// לפי נקודת הלחיצה בפועל, לא לפי מדידת האלמנט - עמיד יותר מול
+			// מבנה עמוד/עיצוב תבנית לא-צפוי.
+			var rect = icon.getBoundingClientRect();
+			var x = (typeof e.clientX === 'number' && e.clientX > 0) ? e.clientX : rect.left;
+			var y = (typeof e.clientY === 'number' && e.clientY > 0) ? e.clientY : rect.bottom;
+			showPreview(href, x, y);
 		});
 	}
 
