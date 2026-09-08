@@ -9,7 +9,7 @@
  * מה זה עושה:
  * 1. בכל עמוד רשימת נושאים (נושאים אחרונים/קטגוריה/לא נקראו וכו') - כל שורת
  *    נושא עוטפת את עצמה ב"עטיפה" (tcs-row-wrapper) בלי לשנות אותה.
- * 2. למנהלים בלבד - קבוע על כל שורה מופיע תפריט נגלל קטן "🎨 עיצוב שורה"
+ * 2. למנהלים בלבד - קבוע על כל שורה מופיע תפריט נגלל קטן "עיצוב שורה"
  *    עם רשימת העיצובים הזמינים (STYLES למטה - כרגע רק "רגיל" ו"מבחן דרכים").
  *    בחירה שומרת בשרת מיידית ומעדכנת את התצוגה, בלי רענון עמוד.
  * 3. לנושא שנבחר לו עיצוב "מבחן דרכים" - השורה הרגילה של NodeBB מוסתרת
@@ -58,36 +58,40 @@
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
 			+ '.tcs-row-wrapper{position:relative;}'
-			// תפריט בחירת עיצוב - קבוע על כל שורה, למנהלים בלבד.
+			// תפריט בחירת עיצוב - קבוע על כל שורה, למנהלים בלבד. עדין ובהיר,
+			// בלי אייקונים צבעוניים - טקסט פשוט וברור.
 			+ '.tcs-admin-bar{position:absolute;top:-11px;right:10px;z-index:6;display:inline-flex;'
-			+ 'align-items:center;gap:6px;background:#20232b;color:#e7e8ea;padding:4px 10px 4px 6px;'
-			+ 'border-radius:14px;font-family:Rubik,Arial,sans-serif;font-size:11px;'
-			+ 'box-shadow:0 3px 9px rgba(0,0,0,.28);}'
-			+ '.tcs-admin-bar select{font-family:inherit;font-size:11px;border:none;background:#383c46;'
-			+ 'color:#fff;border-radius:8px;padding:3px 6px;cursor:pointer;}'
-			// כרטיס "מבחן דרכים".
-			+ '.tcs-card{display:block;max-width:100%;text-decoration:none;color:inherit;'
-			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;border-radius:16px;overflow:hidden;'
-			+ 'background:#20232b;box-shadow:0 6px 18px rgba(20,20,25,.2);'
-			+ 'transition:transform .18s ease,box-shadow .18s ease;margin:6px 0;}'
-			+ '.tcs-card:hover{transform:translateY(-3px);box-shadow:0 16px 32px rgba(20,20,25,.3);}'
-			+ '.tcs-card-badge{position:absolute;top:12px;right:12px;background:#f5b400;color:#20232b;'
-			+ 'font-weight:800;font-size:11.5px;padding:4px 12px;border-radius:14px;z-index:1;'
-			+ 'box-shadow:0 3px 8px rgba(0,0,0,.25);}'
-			+ '.tcs-images{position:relative;width:100%;height:200px;display:flex;gap:2px;background:#12141a;}'
-			+ '.tcs-img-main,.tcs-img-side{background-size:cover;background-position:center;}'
+			+ 'align-items:center;gap:7px;background:#fff;color:#5b5545;padding:4px 10px 4px 6px;'
+			+ 'border:1px solid #e5e0d3;border-radius:14px;font-family:Rubik,Arial,sans-serif;font-size:11px;'
+			+ 'box-shadow:0 3px 9px rgba(30,25,10,.1);}'
+			+ '.tcs-admin-bar select{font-family:inherit;font-size:11px;border:1px solid #e5e0d3;'
+			+ 'background:#faf8f3;color:#332f28;border-radius:8px;padding:3px 6px;cursor:pointer;}'
+			// כרטיס "מבחן דרכים" - עיצוב בהיר, מכובד: לבן/קרם, מסגרת דקה, גוון
+			// זהב-ברונזה עדין לפרטי המותג (תג/מספרים) במקום צהוב בוהק על רקע
+			// כהה. באותו רוחב בדיוק כמו כל שורה אחרת ברשימה (הכרטיס יושב
+			// באותו container בדיוק כמו השורה המקורית שהוא מחליף) - לא רחב יותר.
+			+ '.tcs-card{display:block;width:100%;max-width:100%;box-sizing:border-box;'
+			+ 'text-decoration:none;color:inherit;font-family:Rubik,Arial,sans-serif;direction:rtl;'
+			+ 'border-radius:14px;overflow:hidden;background:#fff;border:1px solid #e9e3d8;'
+			+ 'box-shadow:0 3px 14px rgba(40,32,10,.06);'
+			+ 'transition:box-shadow .18s ease,border-color .18s ease;margin:6px 0;}'
+			+ '.tcs-card:hover{box-shadow:0 10px 26px rgba(40,32,10,.12);border-color:#ddd4bf;}'
+			+ '.tcs-card-badge{position:absolute;top:12px;right:12px;background:#fff;color:#8a6d2f;'
+			+ 'font-weight:700;font-size:11px;padding:4px 12px;border-radius:12px;z-index:1;'
+			+ 'border:1px solid #e2d3a8;letter-spacing:.01em;}'
+			+ '.tcs-images{position:relative;width:100%;height:190px;display:flex;gap:2px;background:#f3efe4;}'
+			+ '.tcs-img-main,.tcs-img-side{background-size:cover;background-position:center;background-color:#efeadc;}'
 			+ '.tcs-images-one .tcs-img-main{width:100%;height:100%;}'
 			+ '.tcs-images-two .tcs-img-main{width:66%;height:100%;}'
 			+ '.tcs-images-two .tcs-img-side{width:34%;height:100%;}'
-			+ '.tcs-images-none{align-items:center;justify-content:center;font-size:48px;color:#3a3f4a;}'
 			+ '.tcs-body{padding:16px 18px 14px;}'
-			+ '.tcs-title{font-family:"Frank Ruhl Libre",serif;font-size:18.5px;font-weight:700;color:#fff;'
+			+ '.tcs-title{font-family:"Frank Ruhl Libre",serif;font-size:18.5px;font-weight:700;color:#28241c;'
 			+ 'line-height:1.5;margin-bottom:14px;}'
 			+ '.tcs-stats{display:flex;gap:8px;}'
 			+ '.tcs-stat{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;'
-			+ 'background:#2b2f39;border:1px solid #383c46;border-radius:7px;padding:8px 4px 7px;}'
-			+ '.tcs-stat-value{font-size:16px;font-weight:800;color:#f5b400;line-height:1.1;}'
-			+ '.tcs-stat-label{font-size:10.5px;color:#9aa0a6;}';
+			+ 'background:#faf8f3;border:1px solid #ece6d6;border-radius:7px;padding:8px 4px 7px;}'
+			+ '.tcs-stat-value{font-size:16px;font-weight:800;color:#8a6d2f;line-height:1.1;}'
+			+ '.tcs-stat-label{font-size:10.5px;color:#948c73;}';
 		var style = document.createElement('style');
 		style.id = STYLE_ID;
 		style.textContent = css;
@@ -123,7 +127,8 @@
 				+ badgeHtml
 				+ '</div>';
 		} else {
-			imagesHtml = '<div class="tcs-images tcs-images-none"><span>🚗</span>' + badgeHtml + '</div>';
+			// אין תמונה בכלל - שטח קרם ריק ושקט, בלי אייקון/אמוג'י ממלא מקום.
+			imagesHtml = '<div class="tcs-images tcs-images-none">' + badgeHtml + '</div>';
 		}
 
 		return imagesHtml
@@ -179,7 +184,7 @@
 
 		var bar = document.createElement('div');
 		bar.className = 'tcs-admin-bar';
-		bar.innerHTML = '<span>🎨 עיצוב שורה</span>'
+		bar.innerHTML = '<span>עיצוב שורה</span>'
 			+ '<select>' + STYLES.map(function (s) {
 				return '<option value="' + escapeHtml(s.id) + '"' + (s.id === currentStyle ? ' selected' : '') + '>'
 					+ escapeHtml(s.label) + '</option>';
