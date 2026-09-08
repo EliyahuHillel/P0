@@ -240,6 +240,12 @@
 			row.parentNode.insertBefore(wrapper, row);
 			wrapper.appendChild(row);
 
+			// תפריט הבחירה למנהל מוצג *מיד*, בלי לחכות לתשובת השרת - כך שהוא
+			// תמיד נראה (ואפשר לדעת שהסקריפט בכלל רץ) גם אם קריאת השרת למטה
+			// עוד לא הצליחה (למשל: הפלאגין בשרת עוד לא הותקן/הופעל). התפריט
+			// עצמו יתעדכן לערך האמיתי ברגע שהתשובה מגיעה.
+			updateAdminBar(wrapper, tid, '');
+
 			tids.push(tid);
 		});
 
@@ -250,7 +256,12 @@
 		// קריאה אחת מרוכזת לכל השורות החדשות שהתגלו כרגע בעמוד (לא קריאה
 		// נפרדת לכל שורה) - כדי לא להכביד גם בעמודים עם הרבה נושאים.
 		socket.emit('plugins.topicCardStyles.getRowData', { tids: tids }, function (err, dataByTid) {
-			if (err || !dataByTid) return;
+			if (err || !dataByTid) {
+				// לא מסתירים כלום - תפריט המנהל כבר מוצג מלמעלה. רק מתעדים
+				// לקונסול כדי שאפשר יהיה לאבחן (למשל: הפלאגין בשרת לא פעיל).
+				if (err) window.console && console.error('[topic-card-styles] getRowData failed:', err);
+				return;
+			}
 			tids.forEach(function (tid) {
 				var wrapper = document.querySelector('.tcs-row-wrapper[data-tcs-wrapper-for="' + tid + '"]');
 				if (wrapper) applyRowData(wrapper, tid, dataByTid[tid] || { style: '' });
