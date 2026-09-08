@@ -2,10 +2,13 @@
  * nodebb-plugin-gemach-directory
  *
  * מה זה עושה:
- * - שומר בשרת רשימת גמ"חים (שם, עיר, קטגוריה, איש קשר, תיאור), עם שני
- *   מצבים: "ממתין לאישור" ו-"מאושר". כל משתמש מחובר יכול "להציע" גמ"ח
- *   חדש (SocketPlugins.gemachDirectory.submit) - הוא נשמר כ"ממתין" ולא
- *   מוצג לאף אחד עד שמנהל מאשר אותו.
+ * - שומר בשרת רשימת גמ"חים (שם, עיר, קטגוריה, איש קשר, תיאור, ומערך
+ *   פריטים בודדים - items), עם שני מצבים: "ממתין לאישור" ו-"מאושר". כל
+ *   משתמש מחובר יכול "להציע" גמ"ח חדש (SocketPlugins.gemachDirectory.submit) -
+ *   הוא נשמר כ"ממתין" ולא מוצג לאף אחד עד שמנהל מאשר אותו. מערך הפריטים
+ *   נשמר כ-JSON מחרוזתי בשדה itemsJson (כדי לא להסתמך על תמיכה ב"מערכים"
+ *   בכל סוגי מסדי הנתונים ש-NodeBB תומך בהם), ומפוענח חזרה למערך `items`
+ *   לפני שמוחזר ללקוח (ראו attachSubmitterInfo).
  * - כשמוצע גמ"ח חדש, נשלחת התראת NodeBB אמיתית (פעמון) לכל חברי קבוצת
  *   "administrators" - כדי שמנהל ידע שיש משהו ממתין לאישור.
  * - אישור/דחייה (SocketPlugins.gemachDirectory.approve/reject) פתוחים רק
@@ -52,7 +55,11 @@ const MAX_LENGTHS = {
 	category: 60,
 	contact: 120,
 	description: 500,
+	item: 60,
 };
+// כמות מקסימלית של פריטים בודדים שאפשר לרשום לגמ"ח אחד - הגנת שרת בסיסית
+// (הלקוח גם מגביל את זה בממשק, אבל זו ההגנה האמיתית).
+const MAX_ITEMS = 60;
 
 const plugin = {};
 
@@ -74,6 +81,7 @@ function registerSocketHandlers() {
 		const category = sanitizeText(data && data.category, MAX_LENGTHS.category);
 		const contact = sanitizeText(data && data.contact, MAX_LENGTHS.contact);
 		const description = sanitizeText(data && data.description, MAX_LENGTHS.description);
+		const items = sanitizeItems(data && data.items);
 
 		if (!name || !city || !category || !contact) {
 			throw new Error('[[error:invalid-data]]');
@@ -88,6 +96,7 @@ function registerSocketHandlers() {
 			category,
 			contact,
 			description,
+			itemsJson: JSON.stringify(items),
 			status: 'pending',
 			submittedBy: socket.uid,
 			createdAt,
@@ -168,12 +177,15 @@ function registerSocketHandlers() {
 		const category = sanitizeText(data && data.category, MAX_LENGTHS.category);
 		const contact = sanitizeText(data && data.contact, MAX_LENGTHS.contact);
 		const description = sanitizeText(data && data.description, MAX_LENGTHS.description);
+		const items = sanitizeItems(data && data.items);
 
 		if (!name || !city || !category || !contact) {
 			throw new Error('[[error:invalid-data]]');
 		}
 
-		await db.setObject(GEMACH_KEY(id), { name, city, category, contact, description });
+		await db.setObject(GEMACH_KEY(id), {
+			name, city, category, contact, description, itemsJson: JSON.stringify(items),
+		});
 		return { ok: true };
 	};
 
@@ -218,11 +230,11 @@ async function getGemachsFromSet(setKey, newestFirst) {
 
 // מוסיף לכל גמ"ח את שם המשתמש (לקרדיט) ואת ה-userslug (לקישור לפרופיל)
 // של מי שהעלה אותו - כדי שהלקוח לא יצטרך שאילתת משתמש נפרדת לכל כרטיס.
+// גם מפענח כאן את itemsJson חזרה למערך items - כך שהלקוח תמיד מקבל מערך
+// מוכן לשימוש, בלי לדעת שבפועל זה נשמר כמחרוזת JSON בודדת בבסיס הנתונים.
 async function attachSubmitterInfo(gemachs) {
 	const uids = gemachs.map(g => g.submittedBy).filter(Boolean);
-	if (!uids.length) return gemachs;
-
-	const users = await user.getUsersFields(uids, ['uid', 'username', 'userslug']);
+	const users = uids.length ? await user.getUsersFields(uids, ['uid', 'username', 'userslug']) : [];
 	const byUid = {};
 	users.forEach((u) => { byUid[u.uid] = u; });
 
@@ -231,8 +243,33 @@ async function attachSubmitterInfo(gemachs) {
 		return Object.assign({}, g, {
 			submittedByUsername: submitter ? submitter.username : null,
 			submittedByUserslug: submitter ? submitter.userslug : null,
+			items: parseItemsJson(g.itemsJson),
 		});
 	});
+}
+
+function parseItemsJson(itemsJson) {
+	if (!itemsJson) return [];
+	try {
+		const parsed = JSON.parse(itemsJson);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch (e) {
+		return [];
+	}
+}
+
+// מנקה מערך פריטים שנשלח מהלקוח - כל פריט עובר את אותו ניקוי כמו שדה טקסט
+// רגיל (חיתוך אורך + הסרת תווי בקרה), פריטים ריקים מושמטים, והכמות הכוללת
+// מוגבלת (MAX_ITEMS) כדי שאף אחד לא ישלח אלפי "פריטים" ויכביד על ה-DB.
+function sanitizeItems(rawItems) {
+	if (!Array.isArray(rawItems)) return [];
+	const cleaned = [];
+	for (const raw of rawItems) {
+		const text = sanitizeText(raw, MAX_LENGTHS.item);
+		if (text) cleaned.push(text);
+		if (cleaned.length >= MAX_ITEMS) break;
+	}
+	return cleaned;
 }
 
 async function notifyAdmins(gemach) {

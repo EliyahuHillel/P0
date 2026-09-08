@@ -49,6 +49,12 @@
 	};
 	var ACCENT_DEFAULT = { accent: '#6b7280', dark: '#374151', soft: '#f2f3f5', subtitle: 'ציוד לרכב להשאלה בקהילה.' };
 
+	// כמות פריטים מקסימלית שהטופס נותן להוסיף (לתאם עם MAX_ITEMS בשרת - זו
+	// רק הגבלת נוחות בממשק, ההגנה האמיתית היא בשרת). כמות הצ'יפים שמוצגים
+	// על הכרטיס עצמו (לפני פתיחת הפרטים) - נשאר קצר כדי שהכרטיס לא יתנפח.
+	var MAX_ITEMS_CLIENT = 60;
+	var CARD_ITEMS_PREVIEW = 6;
+
 	var STYLE_ID = 'gemach-directory-style';
 	var APP_ID = 'gemach-directory-app';
 	var MODAL_ID = 'gemach-directory-modal';
@@ -62,6 +68,43 @@
 
 	function truncate(str, max) {
 		return str.length > max ? (str.slice(0, max - 1) + '…') : str;
+	}
+
+	// מייצר HTML של "צ'יפים" (בועות קטנות) לרשימת פריטים - limit מוגבל = חותך
+	// ומוסיף צ'יפ "+N" בסוף (לכרטיס); limit == 0 = מציג את כל הפריטים בלי
+	// חיתוך (לחלונית הפרטים המלאה).
+	function itemsChipsHTML(items, limit) {
+		if (!items || !items.length) return '';
+		var shown = limit ? items.slice(0, limit) : items;
+		var html = shown.map(function (it) {
+			return '<span class="gd-chip">' + escapeHtml(it) + '</span>';
+		}).join('');
+		if (limit && items.length > limit) {
+			html += '<span class="gd-chip gd-chip-more">+' + (items.length - limit) + '</span>';
+		}
+		return html;
+	}
+
+	// שורת קלט בודדת בבונה הפריטים בטופס - עם כפתור הסרה. משמש גם בטעינת
+	// גמ"ח קיים לעריכה (value ממולא) וגם בהוספת שורה ריקה חדשה.
+	function addItemRow(listEl, value) {
+		var row = document.createElement('div');
+		row.className = 'gd-item-row';
+		row.innerHTML = '<input type="text" maxlength="60" placeholder="שם הפריט">'
+			+ '<button type="button" class="gd-item-remove" aria-label="הסרת פריט">×</button>';
+		row.querySelector('input').value = value || '';
+		row.querySelector('.gd-item-remove').addEventListener('click', function () {
+			row.remove();
+		});
+		listEl.appendChild(row);
+	}
+
+	// אוסף את כל שורות הפריטים שיש להן ערך לא-ריק, כמערך מחרוזות מוכן לשליחה
+	// לשרת (שורות ריקות - כולל שורת ברירת המחדל הראשונה אם נשארה ריקה - מושמטות).
+	function collectItems(listEl) {
+		return Array.prototype.map.call(listEl.querySelectorAll('.gd-item-row input'), function (inp) {
+			return inp.value.trim();
+		}).filter(Boolean);
 	}
 
 	function getSocket() {
@@ -155,6 +198,7 @@
 			+ 'transition:transform .15s ease,box-shadow .15s ease;}'
 			+ '#' + APP_ID + ' .gd-card:hover{transform:translateY(-4px);box-shadow:0 14px 26px rgba(20,20,30,.13);}'
 			+ '#' + APP_ID + ' .gd-card-title{font-size:15px;font-weight:700;color:#20232b;margin-bottom:6px;}'
+			+ '#' + APP_ID + ' .gd-card-items{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px;}'
 			+ '#' + APP_ID + ' .gd-card-desc{font-size:12.5px;color:#6b7078;margin-bottom:10px;line-height:1.5;}'
 			+ '#' + APP_ID + ' .gd-card-credit{font-size:11px;color:#9aa0a6;margin-bottom:8px;}'
 			+ '#' + APP_ID + ' .gd-card-credit a{color:var(--gd-accent-dark);text-decoration:none;font-weight:600;}'
@@ -192,6 +236,19 @@
 			+ '#' + MODAL_ID + ' input[type=text]:focus,#' + MODAL_ID + ' select:focus,#' + MODAL_ID + ' textarea:focus{'
 			+ 'outline:none;border-color:#8a8f96;background:#fff;}'
 			+ '#' + MODAL_ID + ' textarea{resize:vertical;min-height:70px;}'
+			// בונה הפריטים בטופס - שורה לכל פריט (קלט + כפתור הסרה), וכפתור
+			// "הוספת פריט" מתחתיהן - כדי שמי שיש לו הרבה פריטים ירשום כל אחד
+			// בנפרד ולא ידחוס הכל למשפט אחד בתיאור.
+			+ '#' + MODAL_ID + ' .gd-items-list{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}'
+			+ '#' + MODAL_ID + ' .gd-item-row{display:flex;gap:8px;align-items:center;}'
+			+ '#' + MODAL_ID + ' .gd-item-row input{flex:1;}'
+			+ '#' + MODAL_ID + ' .gd-item-remove{border:none;background:#fdecec;color:#a14444;width:30px;height:30px;'
+			+ 'flex-shrink:0;border-radius:8px;cursor:pointer;font-size:15px;line-height:1;font-family:inherit;}'
+			+ '#' + MODAL_ID + ' .gd-item-remove:hover{background:#fadcdc;}'
+			+ '#' + MODAL_ID + ' .gd-item-add{padding:8px 14px;border-radius:9px;border:1px dashed #c7c9cd;'
+			+ 'background:#fbfbfc;color:#5b6169;font-size:12.5px;cursor:pointer;font-family:inherit;align-self:flex-start;}'
+			+ '#' + MODAL_ID + ' .gd-item-add:hover{border-color:#8a8f96;color:#20232b;}'
+			+ '#' + MODAL_ID + ' .gd-item-hint{font-size:11.5px;color:#9aa0a6;margin:6px 0 0;}'
 			+ '#' + MODAL_ID + ' .gd-actions{display:flex;gap:10px;margin-top:16px;}'
 			+ '#' + MODAL_ID + ' .gd-submit{flex:1;padding:11px;border-radius:10px;border:none;background:#20232b;'
 			+ 'color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;}'
@@ -211,6 +268,9 @@
 			+ '#' + DETAILS_ID + ' .gd-badge-outline{background:transparent;border:1px solid var(--gd-accent);'
 			+ 'color:var(--gd-accent-dark);}'
 			+ '#' + DETAILS_ID + ' .gd-details-title{font-size:20px;font-weight:700;color:#20232b;margin:0 0 12px;}'
+			+ '#' + DETAILS_ID + ' .gd-details-items-label{font-size:11.5px;font-weight:700;color:#9aa0a6;'
+			+ 'text-transform:uppercase;letter-spacing:.03em;margin-bottom:7px;}'
+			+ '#' + DETAILS_ID + ' .gd-details-items{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}'
 			+ '#' + DETAILS_ID + ' .gd-details-desc{font-size:14px;color:#4c5058;line-height:1.6;margin:0 0 18px;}'
 			+ '#' + DETAILS_ID + ' .gd-details-contact{background:var(--gd-accent-soft);border-radius:12px;'
 			+ 'padding:13px 16px;}'
@@ -224,6 +284,14 @@
 			+ 'background:#fff;color:#20232b;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}'
 			+ '#' + DETAILS_ID + ' .gd-details-delete{flex:1;padding:9px;border-radius:9px;border:none;'
 			+ 'background:#fdecec;color:#a14444;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;}'
+			// "צ'יפ" של פריט בודד - משותף לכרטיס (בתוך #APP_ID) ולחלונית הפרטים
+			// (בתוך #DETAILS_ID), ששתיהן מגדירות בעצמן את משתני הצבע האלה על
+			// השורש שלהן - לכן לא צריך #APP_ID/#DETAILS_ID בתחילת ה-selector.
+			+ '.gd-chip{display:inline-block;background:var(--gd-accent-soft,#f2f3f5);'
+			+ 'color:var(--gd-accent-dark,#374151);font-size:11px;font-weight:600;padding:3px 9px;'
+			+ 'border-radius:12px;line-height:1.6;}'
+			+ '.gd-chip-more{background:transparent;border:1px dashed var(--gd-accent,#9aa0a6);'
+			+ 'color:var(--gd-accent-dark,#374151);}'
 			// עיצוב שורת הנושא ברשימות (נושאים אחרונים/קטגוריה/לא נקראו) - לא
 			// קשור ל-#gemach-directory-app כי זה רץ מחוץ לעמוד הנושא עצמו.
 			+ '.gd-list-wrapper{border:1.5px solid rgba(67,56,202,.35);border-top:3px solid #4338ca;'
@@ -278,7 +346,7 @@
 			+ '</div>'
 			+ '<div class="gd-tabs" id="gd_tabs">' + buildTabsHTML() + '</div>'
 			+ '<div class="gd-toolbar">'
-			+ '<input type="text" id="gd_search" class="gd-search" placeholder="חיפוש חופשי - שם, תיאור או איש קשר...">'
+			+ '<input type="text" id="gd_search" class="gd-search" placeholder="חיפוש חופשי - שם, פריט, תיאור או איש קשר...">'
 			+ '<select id="gd_filter_city"><option value="">כל הערים</option>' + optionsHTML(CITIES) + '</select>'
 			+ '</div>'
 			+ '<div id="gd_admin_pending"></div>'
@@ -304,7 +372,12 @@
 			+ '<select id="gd_f_category"><option value="">בחרו קטגוריה</option>' + optionsHTML(CATEGORIES) + '</select></div>'
 			+ '<div class="gd-field"><label>איש קשר / טלפון</label><input type="text" id="gd_f_contact" maxlength="120" value="'
 			+ (isEdit ? escapeHtml(existingGemach.contact) : '') + '"></div>'
-			+ '<div class="gd-field"><label>תיאור קצר (רשות)</label><textarea id="gd_f_description" maxlength="500">'
+			+ '<div class="gd-field"><label>פריטים בגמ"ח (רשות)</label>'
+			+ '<div class="gd-items-list" id="gd_f_items"></div>'
+			+ '<button type="button" class="gd-item-add" id="gd_f_item_add">+ הוספת פריט</button>'
+			+ '<div class="gd-item-hint">כל פריט בשורה נפרדת - כך הרשימה תוצג מסודר לכולם (למשל: מקדחה, פטיש נדנוד, מברגה חשמלית...).</div>'
+			+ '</div>'
+			+ '<div class="gd-field"><label>הערות נוספות (רשות)</label><textarea id="gd_f_description" maxlength="500">'
 			+ (isEdit ? escapeHtml(existingGemach.description || '') : '') + '</textarea></div>'
 			+ '<div class="gd-actions">'
 			+ '<button type="button" class="gd-submit" id="gd_f_submit">' + (isEdit ? 'שמירת שינויים' : 'שליחה לאישור') + '</button>'
@@ -314,9 +387,11 @@
 	}
 
 	function gemachCardHTML(g) {
+		var items = g.items || [];
 		return ''
 			+ '<div class="gd-card" data-id="' + escapeHtml(g.id) + '">'
 			+ '<div class="gd-card-title">' + escapeHtml(g.name) + '</div>'
+			+ (items.length ? '<div class="gd-card-items">' + itemsChipsHTML(items, CARD_ITEMS_PREVIEW) + '</div>' : '')
 			+ (g.description ? '<div class="gd-card-desc">' + escapeHtml(truncate(g.description, 80)) + '</div>' : '')
 			+ creditHTML(g)
 			+ '<div class="gd-card-hint">לחצו לפרטים ←</div>'
@@ -349,7 +424,7 @@
 
 	function matchesSearch(g, term) {
 		if (!term) return true;
-		var haystack = [g.name, g.description, g.contact].join(' ').toLowerCase();
+		var haystack = [g.name, g.description, g.contact].concat(g.items || []).join(' ').toLowerCase();
 		return haystack.indexOf(term.toLowerCase()) !== -1;
 	}
 
@@ -381,6 +456,9 @@
 			+ '<span class="gd-badge gd-badge-outline">' + escapeHtml(g.city) + '</span>'
 			+ '</div>'
 			+ '<h3 class="gd-details-title">' + escapeHtml(g.name) + '</h3>'
+			+ ((g.items && g.items.length) ?
+				'<div class="gd-details-items-label">פריטים בגמ"ח (' + g.items.length + ')</div>'
+				+ '<div class="gd-details-items">' + itemsChipsHTML(g.items, 0) + '</div>' : '')
 			+ (g.description ? '<p class="gd-details-desc">' + escapeHtml(g.description) + '</p>' : '')
 			+ '<div class="gd-details-contact">'
 			+ '<span class="gd-details-contact-label">איש קשר</span>'
@@ -569,6 +647,18 @@
 			categorySelect.value = currentCategory;
 		}
 
+		// בונה הפריטים - בעריכה מתחיל עם כל הפריטים הקיימים (או שורה ריקה
+		// אחת אם עוד אין), בהוספה חדשה מתחיל עם שורה ריקה אחת שמזמינה למלא.
+		var itemsListEl = modal.querySelector('#gd_f_items');
+		var initialItems = (isEdit && existingGemach.items && existingGemach.items.length) ?
+			existingGemach.items : [''];
+		initialItems.forEach(function (val) { addItemRow(itemsListEl, val); });
+		modal.querySelector('#gd_f_item_add').addEventListener('click', function () {
+			if (itemsListEl.children.length >= MAX_ITEMS_CLIENT) return;
+			addItemRow(itemsListEl, '');
+			itemsListEl.lastChild.querySelector('input').focus();
+		});
+
 		modal.querySelector('#gd_f_submit').addEventListener('click', function () {
 			var statusEl = modal.querySelector('#gd_f_status');
 			var citySelectEl = modal.querySelector('#gd_f_city').value;
@@ -580,6 +670,7 @@
 				city: city,
 				category: categorySelect.value,
 				contact: modal.querySelector('#gd_f_contact').value.trim(),
+				items: collectItems(itemsListEl),
 				description: modal.querySelector('#gd_f_description').value.trim(),
 			};
 			if (isEdit) data.id = existingGemach.id;
