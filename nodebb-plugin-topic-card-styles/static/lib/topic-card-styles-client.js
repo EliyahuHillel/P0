@@ -1,0 +1,264 @@
+/*
+ * להדבקה ב: Admin Control Panel -> Appearance -> Custom -> Custom JavaScript
+ * (מדביקים מתחת לקוד הקיים - זה בסדר גמור שיש כמה סקריפטים ב-Custom JS).
+ *
+ * דורש שהפלאגין nodebb-plugin-topic-card-styles מותקן ופעיל בשרת - הוא זה
+ * ששומר איזה עיצוב נבחר לכל נושא, ומחזיר את הנתונים (כותרת/תמונות/סטטיסטיקות)
+ * לעיצובים שדורשים אותם.
+ *
+ * מה זה עושה:
+ * 1. בכל עמוד רשימת נושאים (נושאים אחרונים/קטגוריה/לא נקראו וכו') - כל שורת
+ *    נושא עוטפת את עצמה ב"עטיפה" (tcs-row-wrapper) בלי לשנות אותה.
+ * 2. למנהלים בלבד - קבוע על כל שורה מופיע תפריט נגלל קטן "🎨 עיצוב שורה"
+ *    עם רשימת העיצובים הזמינים (STYLES למטה - כרגע רק "רגיל" ו"מבחן דרכים").
+ *    בחירה שומרת בשרת מיידית ומעדכנת את התצוגה, בלי רענון עמוד.
+ * 3. לנושא שנבחר לו עיצוב "מבחן דרכים" - השורה הרגילה של NodeBB מוסתרת
+ *    (לא נמחקת - כדי שאפשר יהיה לחזור ל"רגיל" בלי לרענן), ובמקומה מופיע
+ *    כרטיס גדול ומעוצב: תמונה אחת גדולה או שתיים (אחת גדולה + אחת קטנה
+ *    בצד, אותו מלבן) שנשלפות אוטומטית מהנושא, כותרת יפה, ושלושה "ריבועים"
+ *    סטטיסטיקה (צפיות/פוסטים/הצבעות) בשורה אחת למטה - בהשראת אותם ריבועים
+ *    שכבר קיימים היום בשורות הרגילות, רק מסודרים אחרת ובתוך הכרטיס עצמו.
+ *    כל מי שגולש רואה את הכרטיס הזה, לא רק מנהלים.
+ */
+(function () {
+	'use strict';
+
+	// רשימת העיצובים הזמינים - '' = ברירת מחדל/שורה רגילה. כדי להוסיף עיצוב
+	// חדש בעתיד: מוסיפים כאן { id, label } *וגם* ב-KNOWN_STYLES בשרת
+	// (library.js), ומטמיעים את הציור בפועל בפונקציה renderCard למטה לפי
+	// ה-id החדש - ואז מפרסמים מחדש (npm publish + Custom JS).
+	var STYLES = [
+		{ id: '', label: 'רגיל (ברירת מחדל)' },
+		{ id: 'driving-test', label: 'מבחן דרכים' },
+	];
+
+	var STYLE_ID = 'tcs-style';
+
+	function escapeHtml(str) {
+		var div = document.createElement('div');
+		div.textContent = str === null || str === undefined ? '' : String(str);
+		return div.innerHTML;
+	}
+
+	function getSocket() {
+		return (typeof window.socket !== 'undefined') ? window.socket : null;
+	}
+
+	function isAdmin() {
+		try {
+			return !!(window.app && app.user && app.user.isAdmin);
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// ============ עיצוב (CSS) ============
+
+	function injectStyles() {
+		if (document.getElementById(STYLE_ID)) return;
+		var css = ''
+			+ '.tcs-row-wrapper{position:relative;}'
+			// תפריט בחירת עיצוב - קבוע על כל שורה, למנהלים בלבד.
+			+ '.tcs-admin-bar{position:absolute;top:-11px;right:10px;z-index:6;display:inline-flex;'
+			+ 'align-items:center;gap:6px;background:#20232b;color:#e7e8ea;padding:4px 10px 4px 6px;'
+			+ 'border-radius:14px;font-family:Rubik,Arial,sans-serif;font-size:11px;'
+			+ 'box-shadow:0 3px 9px rgba(0,0,0,.28);}'
+			+ '.tcs-admin-bar select{font-family:inherit;font-size:11px;border:none;background:#383c46;'
+			+ 'color:#fff;border-radius:8px;padding:3px 6px;cursor:pointer;}'
+			// כרטיס "מבחן דרכים".
+			+ '.tcs-card{display:block;max-width:100%;text-decoration:none;color:inherit;'
+			+ 'font-family:Rubik,Arial,sans-serif;direction:rtl;border-radius:16px;overflow:hidden;'
+			+ 'background:#20232b;box-shadow:0 6px 18px rgba(20,20,25,.2);'
+			+ 'transition:transform .18s ease,box-shadow .18s ease;margin:6px 0;}'
+			+ '.tcs-card:hover{transform:translateY(-3px);box-shadow:0 16px 32px rgba(20,20,25,.3);}'
+			+ '.tcs-card-badge{position:absolute;margin:12px;background:#f5b400;color:#20232b;'
+			+ 'font-weight:800;font-size:11.5px;padding:4px 12px;border-radius:14px;'
+			+ 'box-shadow:0 3px 8px rgba(0,0,0,.25);}'
+			+ '.tcs-images{position:relative;width:100%;height:200px;display:flex;gap:2px;background:#12141a;}'
+			+ '.tcs-img-main,.tcs-img-side{background-size:cover;background-position:center;}'
+			+ '.tcs-images-one .tcs-img-main{width:100%;height:100%;}'
+			+ '.tcs-images-two .tcs-img-main{width:66%;height:100%;}'
+			+ '.tcs-images-two .tcs-img-side{width:34%;height:100%;}'
+			+ '.tcs-images-none{align-items:center;justify-content:center;font-size:48px;color:#3a3f4a;}'
+			+ '.tcs-body{padding:16px 18px 14px;}'
+			+ '.tcs-title{font-family:"Frank Ruhl Libre",serif;font-size:18.5px;font-weight:700;color:#fff;'
+			+ 'line-height:1.5;margin-bottom:14px;}'
+			+ '.tcs-stats{display:flex;gap:8px;}'
+			+ '.tcs-stat{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;'
+			+ 'background:#2b2f39;border:1px solid #383c46;border-radius:7px;padding:8px 4px 7px;}'
+			+ '.tcs-stat-value{font-size:16px;font-weight:800;color:#f5b400;line-height:1.1;}'
+			+ '.tcs-stat-label{font-size:10.5px;color:#9aa0a6;}';
+		var style = document.createElement('style');
+		style.id = STYLE_ID;
+		style.textContent = css;
+		document.head.appendChild(style);
+	}
+
+	// ============ בניית כרטיס "מבחן דרכים" ============
+
+	function statTileHTML(value, label) {
+		return '<div class="tcs-stat"><span class="tcs-stat-value">' + escapeHtml(String(value || 0)) + '</span>'
+			+ '<span class="tcs-stat-label">' + escapeHtml(label) + '</span></div>';
+	}
+
+	function encodeCssUrl(url) {
+		return String(url).replace(/'/g, '%27').replace(/"/g, '%22');
+	}
+
+	function drivingTestCardHTML(rowData) {
+		var images = rowData.images || [];
+		var imagesHtml;
+		if (images.length >= 2) {
+			imagesHtml = '<div class="tcs-images tcs-images-two">'
+				+ '<div class="tcs-img-main" style="background-image:url(\'' + encodeCssUrl(images[0]) + '\')"></div>'
+				+ '<div class="tcs-img-side" style="background-image:url(\'' + encodeCssUrl(images[1]) + '\')"></div>'
+				+ '</div>';
+		} else if (images.length === 1) {
+			imagesHtml = '<div class="tcs-images tcs-images-one">'
+				+ '<div class="tcs-img-main" style="background-image:url(\'' + encodeCssUrl(images[0]) + '\')"></div>'
+				+ '</div>';
+		} else {
+			imagesHtml = '<div class="tcs-images tcs-images-none"><span>🚗</span></div>';
+		}
+
+		return imagesHtml
+			+ '<div class="tcs-card-badge">מבחן דרכים</div>'
+			+ '<div class="tcs-body">'
+			+ '<div class="tcs-title">' + escapeHtml(rowData.title || '') + '</div>'
+			+ '<div class="tcs-stats">'
+			+ statTileHTML(rowData.views, 'צפיות')
+			+ statTileHTML(rowData.posts, 'פוסטים')
+			+ statTileHTML(rowData.votes, 'הצבעות')
+			+ '</div>'
+			+ '</div>';
+	}
+
+	// עתידית: כשמוסיפים עיצוב חדש, מוסיפים כאן ענף נוסף (לפי style.id) שבונה
+	// את ה-HTML שלו, ומחזירים null לעיצוב שאין עדיין לו מימוש.
+	function renderCard(style, rowData) {
+		if (style === 'driving-test') return drivingTestCardHTML(rowData);
+		return null;
+	}
+
+	// ============ עדכון שורה ============
+
+	function applyRowData(wrapper, tid, rowData) {
+		var style = (rowData && rowData.style) || '';
+		var row = wrapper.querySelector('[data-tid="' + tid + '"]');
+		var card = wrapper.querySelector('.tcs-card');
+		var html = style ? renderCard(style, rowData) : null;
+
+		if (html) {
+			if (row) row.style.display = 'none';
+			if (!card) {
+				card = document.createElement('a');
+				card.className = 'tcs-card';
+				wrapper.appendChild(card);
+			}
+			card.href = rowData.url || '#';
+			card.innerHTML = html;
+		} else {
+			if (row) row.style.display = '';
+			if (card) card.remove();
+		}
+
+		updateAdminBar(wrapper, tid, style);
+	}
+
+	function updateAdminBar(wrapper, tid, currentStyle) {
+		if (!isAdmin()) return;
+		var existing = wrapper.querySelector('.tcs-admin-bar');
+		if (existing) {
+			existing.querySelector('select').value = currentStyle;
+			return;
+		}
+
+		var bar = document.createElement('div');
+		bar.className = 'tcs-admin-bar';
+		bar.innerHTML = '<span>🎨 עיצוב שורה</span>'
+			+ '<select>' + STYLES.map(function (s) {
+				return '<option value="' + escapeHtml(s.id) + '"' + (s.id === currentStyle ? ' selected' : '') + '>'
+					+ escapeHtml(s.label) + '</option>';
+			}).join('') + '</select>';
+		wrapper.insertBefore(bar, wrapper.firstChild);
+
+		// עוצר בעד/click/mousedown - כדי שפתיחת/שינוי התפריט לא "ידלוף" ללחיצה
+		// על השורה עצמה שמתחתיו (שהייתה מנווטת לנושא).
+		['click', 'mousedown'].forEach(function (evt) {
+			bar.addEventListener(evt, function (e) { e.stopPropagation(); });
+		});
+
+		bar.querySelector('select').addEventListener('change', function () {
+			var newStyle = this.value;
+			var socket = getSocket();
+			if (!socket) return;
+			socket.emit('plugins.topicCardStyles.setStyle', { tid: tid, style: newStyle }, function (err) {
+				if (err) {
+					window.alert('שגיאה בשמירת העיצוב - נסו שוב.');
+					return;
+				}
+				if (newStyle) {
+					// עיצוב שדורש נתונים (כותרת/תמונות/סטטיסטיקות) - שולפים
+					// אותם עכשיו, רק לשורה הזו.
+					socket.emit('plugins.topicCardStyles.getRowData', { tids: [tid] }, function (err2, dataByTid) {
+						if (err2 || !dataByTid) return;
+						applyRowData(wrapper, tid, dataByTid[tid] || { style: newStyle });
+					});
+				} else {
+					applyRowData(wrapper, tid, { style: '' });
+				}
+			});
+		});
+	}
+
+	// ============ סריקת שורות ============
+
+	function scanRows() {
+		var rows = document.querySelectorAll(
+			'[component="category/topic"]:not([data-tcs-enhanced]), li[data-tid]:not([data-tcs-enhanced])'
+		);
+		if (!rows.length) return;
+
+		var tids = [];
+		rows.forEach(function (row) {
+			var tid = row.getAttribute('data-tid');
+			if (!tid) return;
+			row.setAttribute('data-tcs-enhanced', '1');
+
+			var wrapper = document.createElement('div');
+			wrapper.className = 'tcs-row-wrapper';
+			wrapper.setAttribute('data-tcs-wrapper-for', tid);
+			row.parentNode.insertBefore(wrapper, row);
+			wrapper.appendChild(row);
+
+			tids.push(tid);
+		});
+
+		if (!tids.length) return;
+		var socket = getSocket();
+		if (!socket) return;
+
+		// קריאה אחת מרוכזת לכל השורות החדשות שהתגלו כרגע בעמוד (לא קריאה
+		// נפרדת לכל שורה) - כדי לא להכביד גם בעמודים עם הרבה נושאים.
+		socket.emit('plugins.topicCardStyles.getRowData', { tids: tids }, function (err, dataByTid) {
+			if (err || !dataByTid) return;
+			tids.forEach(function (tid) {
+				var wrapper = document.querySelector('.tcs-row-wrapper[data-tcs-wrapper-for="' + tid + '"]');
+				if (wrapper) applyRowData(wrapper, tid, dataByTid[tid] || { style: '' });
+			});
+		});
+	}
+
+	function onPageChange() {
+		injectStyles();
+		scanRows();
+	}
+
+	if (window.$) {
+		// action:ajaxify.end - מעבר עמוד רגיל. action:topics.loaded - טעינת
+		// עוד שורות בגלילה אינסופית, בלי מעבר עמוד מלא.
+		$(window).on('action:ajaxify.end action:topics.loaded', onPageChange);
+	}
+	document.addEventListener('DOMContentLoaded', onPageChange);
+	onPageChange();
+})();

@@ -1,0 +1,9 @@
+{
+  "id": "nodebb-plugin-topic-card-styles",
+  "name": "Topic Card Styles",
+  "description": "Lets admins pick a custom visual card design for individual topics in list views (recent/category/unread), from a per-row dropdown - starting with a driving-test (\"מבחן דרכים\") design.",
+  "library": "./library.js",
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" }
+  ]
+}
