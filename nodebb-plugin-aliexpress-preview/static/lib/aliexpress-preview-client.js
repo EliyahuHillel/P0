@@ -235,6 +235,11 @@
 		scanLinks();
 	}
 
+	// חייבים להזריק את העיצוב *לפני* שנוצר סמל ראשון - אחרת הסמל מופיע
+	// לרגע כפתור ברירת מחדל גדול ומרובע (בלי העיגול/הגודל הקטן) עד ללחיצה
+	// הראשונה על סמל כלשהו בעמוד, כי רק זה הפעיל בעבר את injectStyles.
+	injectStyles();
+
 	if (window.$) {
 		$(window).on('action:ajaxify.end action:posts.loaded action:topic.loaded', onPageChange);
 	}
