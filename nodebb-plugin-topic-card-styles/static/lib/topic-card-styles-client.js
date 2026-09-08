@@ -71,8 +71,8 @@
 			+ 'background:#20232b;box-shadow:0 6px 18px rgba(20,20,25,.2);'
 			+ 'transition:transform .18s ease,box-shadow .18s ease;margin:6px 0;}'
 			+ '.tcs-card:hover{transform:translateY(-3px);box-shadow:0 16px 32px rgba(20,20,25,.3);}'
-			+ '.tcs-card-badge{position:absolute;margin:12px;background:#f5b400;color:#20232b;'
-			+ 'font-weight:800;font-size:11.5px;padding:4px 12px;border-radius:14px;'
+			+ '.tcs-card-badge{position:absolute;top:12px;right:12px;background:#f5b400;color:#20232b;'
+			+ 'font-weight:800;font-size:11.5px;padding:4px 12px;border-radius:14px;z-index:1;'
 			+ 'box-shadow:0 3px 8px rgba(0,0,0,.25);}'
 			+ '.tcs-images{position:relative;width:100%;height:200px;display:flex;gap:2px;background:#12141a;}'
 			+ '.tcs-img-main,.tcs-img-side{background-size:cover;background-position:center;}'
@@ -107,22 +107,26 @@
 
 	function drivingTestCardHTML(rowData) {
 		var images = rowData.images || [];
+		var badgeHtml = '<div class="tcs-card-badge">מבחן דרכים</div>';
 		var imagesHtml;
+		// התג מוזרק *בתוך* תיבת התמונות (לא כאח שלה) - כך שהוא תמיד יושב
+		// צמוד לפינה שלה, לא משנה מה גובה שאר הכרטיס.
 		if (images.length >= 2) {
 			imagesHtml = '<div class="tcs-images tcs-images-two">'
 				+ '<div class="tcs-img-main" style="background-image:url(\'' + encodeCssUrl(images[0]) + '\')"></div>'
 				+ '<div class="tcs-img-side" style="background-image:url(\'' + encodeCssUrl(images[1]) + '\')"></div>'
+				+ badgeHtml
 				+ '</div>';
 		} else if (images.length === 1) {
 			imagesHtml = '<div class="tcs-images tcs-images-one">'
 				+ '<div class="tcs-img-main" style="background-image:url(\'' + encodeCssUrl(images[0]) + '\')"></div>'
+				+ badgeHtml
 				+ '</div>';
 		} else {
-			imagesHtml = '<div class="tcs-images tcs-images-none"><span>🚗</span></div>';
+			imagesHtml = '<div class="tcs-images tcs-images-none"><span>🚗</span>' + badgeHtml + '</div>';
 		}
 
 		return imagesHtml
-			+ '<div class="tcs-card-badge">מבחן דרכים</div>'
 			+ '<div class="tcs-body">'
 			+ '<div class="tcs-title">' + escapeHtml(rowData.title || '') + '</div>'
 			+ '<div class="tcs-stats">'
