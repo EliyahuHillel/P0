@@ -20,7 +20,10 @@
  *    בצד, אותו מלבן) שנשלפות אוטומטית מהנושא, כותרת יפה, ושלושה "ריבועים"
  *    סטטיסטיקה (צפיות/פוסטים/הצבעות) בשורה אחת למטה - בהשראת אותם ריבועים
  *    שכבר קיימים היום בשורות הרגילות, רק מסודרים אחרת ובתוך הכרטיס עצמו.
- *    כל מי שגולש רואה את הכרטיס הזה, לא רק מנהלים.
+ *    כל מי שגולש רואה את הכרטיס הזה, לא רק מנהלים. לכרטיס יש גם ריבוע
+ *    בחירה משלו (בפינה) - כי השורה המקורית עם ריבוע הבחירה שלה מוסתרת,
+ *    כך שאפשר עדיין לסמן נושא שכבר במצב "מבחן דרכים" ולהחזיר אותו ל"רגיל"
+ *    דרך "כלי נושא", בדיוק כמו נושא רגיל.
  */
 (function () {
 	'use strict';
@@ -77,7 +80,14 @@
 			+ '.tcs-stat{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;'
 			+ 'background:#faf8f3;border:1px solid #ece6d6;border-radius:7px;padding:8px 4px 7px;}'
 			+ '.tcs-stat-value{font-size:16px;font-weight:800;color:#8a6d2f;line-height:1.1;}'
-			+ '.tcs-stat-label{font-size:10.5px;color:#948c73;}';
+			+ '.tcs-stat-label{font-size:10.5px;color:#948c73;}'
+			// ריבוע הבחירה על הכרטיס - יושב מעל הכרטיס (לא בתוך ה-<a> שלו,
+			// כדי שלחיצה עליו לא תפעיל את הניווט של הכרטיס), בפינה הנגדית
+			// לתג "מבחן דרכים".
+			+ '.tcs-select-icon{position:absolute;top:10px;left:10px;z-index:2;background:#fff;'
+			+ 'border-radius:6px;width:26px;height:26px;display:flex;align-items:center;'
+			+ 'justify-content:center;font-size:15px;color:#8a6d2f;cursor:pointer;'
+			+ 'box-shadow:0 1px 4px rgba(40,32,10,.15);}';
 		var style = document.createElement('style');
 		style.id = STYLE_ID;
 		style.textContent = css;
@@ -138,46 +148,68 @@
 
 	// ============ עדכון שורה ============
 
-	// tid -> { wrapper, row } - מחזיקים רפרנס *ישיר* לאלמנטים האמיתיים שכבר
-	// עיבדנו, במקום לחפש אותם מחדש ב-DOM לפי data-tid בכל פעם. זה קריטי:
-	// בעמודי קטגוריה גילינו שחיפוש מחדש (wrapper.querySelector) לפעמים תפס
-	// אלמנט לא נכון (כנראה מבנה DOM שונה מעמוד "נושאים אחרונים"), וכתוצאה
-	// מזה השורה המקורית לא הוסתרה בפועל - "כפילות" מול הכרטיס החדש.
-	// עם רפרנס ישיר זו כבר לא יכולה להיות הבעיה.
+	// tid -> מערך של { wrapper, row } - לא אובייקט בודד! גילינו (לפי דיווח
+	// שהכפילות בעמוד קטגוריה נשארה גם אחרי מעבר לרפרנס ישיר) שבעמודי קטגוריה
+	// לפעמים יש יותר מאלמנט DOM אחד עם אותו data-tid בו-זמנית (למשל תצוגת
+	// מובייל/דסקטופ כפולה של אותה שורה, שרק אחת מהן מוצגת בפועל לפי CSS
+	// רספונסיבי). סריקה קודמת עטפה כל אלמנט כזה בנפרד אבל שמרה ברישום רק
+	// את האחרון מביניהם (כי זה היה מפתח יחיד) - כך שהעותק הראשון נשאר גלוי
+	// לעד, עם השורה המקורית שלו ותיבת הבחירה המקורית שלו. עכשיו כל עותק
+	// נשמר ברשימה, ו-applyRowData מסתיר את כולם ומציג כרטיס רק פעם אחת.
 	var rowRegistry = {};
 
 	function applyRowData(tid, rowData) {
-		var entry = rowRegistry[tid];
-		if (!entry) return;
-		var wrapper = entry.wrapper;
-		var row = entry.row;
+		var entries = rowRegistry[tid];
+		if (!entries || !entries.length) return;
 		var style = (rowData && rowData.style) || '';
-		var card = wrapper.querySelector('.tcs-card');
 		var html = style ? renderCard(style, rowData) : null;
 
-		if (html) {
-			// setProperty עם 'important' ולא סתם row.style.display='none' - כי
-			// לפי מה שראינו בפועל, ל-CSS של התבנית יש display עם !important על
-			// שורת הנושא (כנראה חלק מהגדרת ה-flex/grid שלה), וזה מנצח style
-			// רגיל inline. !important ב-inline מנצח גם !important ב-stylesheet.
-			row.style.setProperty('display', 'none', 'important');
-			if (!card) {
-				card = document.createElement('a');
-				card.className = 'tcs-card';
-				wrapper.appendChild(card);
+		entries.forEach(function (entry, idx) {
+			var wrapper = entry.wrapper;
+			var row = entry.row;
+			var card = wrapper.querySelector('.tcs-card');
+			var selectIcon = wrapper.querySelector('.tcs-select-icon');
+
+			if (html) {
+				// setProperty עם 'important' ולא סתם row.style.display='none' -
+				// כי ל-CSS של התבנית יש display עם !important על שורת הנושא,
+				// וזה מנצח style רגיל inline. !important ב-inline מנצח גם
+				// !important ב-stylesheet.
+				row.style.setProperty('display', 'none', 'important');
+				// רק בעותק הראשון בפועל מציגים כרטיס - שאר העותקים (אם יש,
+				// למשל תצוגה כפולה בעמוד קטגוריה) פשוט מוסתרים לגמרי, כדי
+				// שהנושא לא יופיע פעמיים.
+				if (idx === 0) {
+					if (!card) {
+						card = document.createElement('a');
+						card.className = 'tcs-card';
+						wrapper.appendChild(card);
+					}
+					card.href = rowData.url || '#';
+					card.innerHTML = html;
+
+					if (!selectIcon) {
+						selectIcon = document.createElement('i');
+						selectIcon.setAttribute('component', 'topic/select');
+						selectIcon.className = 'fa fa-square-o tcs-select-icon';
+						wrapper.appendChild(selectIcon);
+					}
+				} else if (card) {
+					card.remove();
+					if (selectIcon) selectIcon.remove();
+				}
+			} else {
+				row.style.removeProperty('display');
+				if (card) card.remove();
+				if (selectIcon) selectIcon.remove();
 			}
-			card.href = rowData.url || '#';
-			card.innerHTML = html;
-		} else {
-			row.style.removeProperty('display');
-			if (card) card.remove();
-		}
+		});
 	}
 
 	// רענון "רגעי" לשורה בודדת (נקרא אחרי שינוי עיצוב מתפריט "כלי נושא") -
 	// שולף נתונים טריים ומעדכן את התצוגה שלה מיידית אם היא נמצאת כרגע במסך.
 	function refreshRowIfVisible(tid) {
-		if (!rowRegistry[tid]) return;
+		if (!rowRegistry[tid] || !rowRegistry[tid].length) return;
 		var socket = getSocket();
 		if (!socket) return;
 		socket.emit('plugins.topicCardStyles.getRowData', { tids: [tid] }, function (err, dataByTid) {
@@ -202,11 +234,17 @@
 
 			var wrapper = document.createElement('div');
 			wrapper.className = 'tcs-row-wrapper';
+			// ה-data-tid על העטיפה עצמה (לא רק על השורה שבתוכה) - כך שריבוע
+			// הבחירה שלנו על הכרטיס (ראו tcs-select-icon), שהוא אח של השורה
+			// ולא צאצא שלה, עדיין נמצא ע"י getSelectedTids באמצעות
+			// icon.closest('[data-tid]').
+			wrapper.setAttribute('data-tid', tid);
 			row.parentNode.insertBefore(wrapper, row);
 			wrapper.appendChild(row);
 
-			rowRegistry[tid] = { wrapper: wrapper, row: row };
-			tids.push(tid);
+			if (!rowRegistry[tid]) rowRegistry[tid] = [];
+			rowRegistry[tid].push({ wrapper: wrapper, row: row });
+			if (tids.indexOf(tid) === -1) tids.push(tid);
 		});
 
 		if (!tids.length) return;
@@ -297,6 +335,23 @@
 			});
 		});
 	}
+
+	// ריבוע הבחירה שלנו (tcs-select-icon) נוצר ונהרס דינמית (רק כשיש כרטיס
+	// "מבחן דרכים" מוצג), אז מאזינים ל-click פעם אחת ברמת ה-document
+	// (delegation) במקום לרשום מאזין חדש בכל פעם שנוצר ריבוע. לא צריך
+	// stopPropagation בשביל למנוע ניווט - הריבוע הוא אח של ה-<a class="tcs-card">,
+	// לא צאצא שלו, כך שממילא אין לחיצה "דרך" הכרטיס.
+	document.addEventListener('click', function (e) {
+		var icon = e.target.closest && e.target.closest('.tcs-select-icon');
+		if (!icon) return;
+		e.preventDefault();
+		e.stopPropagation();
+		if ((icon.className || '').indexOf('check') === -1) {
+			icon.className = 'fa fa-check-square-o tcs-select-icon';
+		} else {
+			icon.className = 'fa fa-square-o tcs-select-icon';
+		}
+	});
 
 	function onPageChange() {
 		injectStyles();
