@@ -172,16 +172,41 @@
 		row.style.setProperty('display', 'none', 'important');
 	}
 
+	// חשוב: בודקים getComputedStyle (התוצאה שבאמת מוצגת), לא row.style.display
+	// - כי גילינו שמשהו קובע row.style.display='none' *בלי* !important אחרי
+	// שההסתרה שלנו כבר הוחלה. זה משאיר את הערך "none" (אז row.style.display
+	// עדיין היה נראה "תקין" אם היינו בודקים רק אותו) אבל בלי ה-!important -
+	// כך שכלל CSS עם !important בגיליון הסגנונות (למשל על class="selected")
+	// מנצח בפועל, וה-computed display האמיתי הוא "flex" למרות שהמחרוזת
+	// אומרת "none". getComputedStyle הוא היחיד שמשקף את המצב האמיתי.
+	function isActuallyHidden(row) {
+		return getComputedStyle(row).display === 'none';
+	}
+
 	function ensureRowObserver(entry) {
 		if (entry.observer) return;
 		var mo = new MutationObserver(function () {
-			if (entry.forceHidden && entry.row.style.display !== 'none') {
+			if (entry.forceHidden && !isActuallyHidden(entry.row)) {
 				hideRow(entry.row);
 			}
 		});
 		mo.observe(entry.row, { attributes: true, attributeFilter: ['style', 'class'] });
 		entry.observer = mo;
 	}
+
+	// רשת ביטחון אחרונה: גם אם ה-MutationObserver מפספס איכשהו את הרגע
+	// שבו ההסתרה מתבטלת (למשל אם זה קורה בדרך שלא נוגעת ב-style/class של
+	// האלמנט עצמו) - בדיקה תקופתית כל שנייה על כל השורות שאמורות כרגע
+	// להיות מוסתרות, ותיקון מיידי אם משהו החזיר אותן להיות גלויות.
+	setInterval(function () {
+		Object.keys(rowRegistry).forEach(function (tid) {
+			rowRegistry[tid].forEach(function (entry) {
+				if (entry.forceHidden && !isActuallyHidden(entry.row)) {
+					hideRow(entry.row);
+				}
+			});
+		});
+	}, 1000);
 
 	function applyRowData(tid, rowData) {
 		var entries = rowRegistry[tid];
