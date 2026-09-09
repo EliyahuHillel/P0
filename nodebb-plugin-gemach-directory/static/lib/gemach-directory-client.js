@@ -8,12 +8,14 @@
  * הפלאגין דרך socket.io (plugins.gemachDirectory.*), בלי לגעת ב-DB ישירות.
  *
  * מה זה עושה:
- * 1. יש נושא (topic) קבוע אחד בפורום שמשמש כ"רשימת גמחים" - הסקריפט מזהה
- *    אותו לפי מזהה נושא מדויק (לא לפי חיפוש טקסט בכותרת - זה היה תופס
- *    בטעות גם נושאים אחרים שסתם הכילו את המילים "רשימת גמחים"): הוא שואל
- *    את השרת "מה ה-tid של הנושא שמכיל את TARGET_POST_ID" (הפוסט הקבוע,
- *    ראו library.js), ומטמין את התשובה. מוסיף בתוך הפוסט הראשון של הנושא
- *    הזה בלבד (בלי למחוק את מה שכבר כתוב שם) את כל הווידג'ט: לשוניות קטגוריה (כל
+ * 1. יש נושא (topic) קבוע אחד בפורום שמשמש כ"רשימת גמחים", מזוהה לפי
+ *    הקישור הקבוע שלו (TARGET_POST_ID למטה, כרגע 151093 - לא לפי חיפוש
+ *    טקסט בכותרת, זה היה תופס בטעות גם נושאים אחרים שסתם הכילו את המילים
+ *    "רשימת גמחים"). כל הזיהוי קורה בצד הלקוח בלבד, בלי לשאול את השרת:
+ *    בעמוד הנושא עצמו משווים ל-mainPid שכבר קיים ב-ajaxify.data; לשורות
+ *    ברשימות (שאין להן את המידע הזה) "לומדים" ומזכירים את ה-tid שהתגלה
+ *    ב-localStorage בפעם הראשונה שמישהו פותח את הנושא בדפדפן הזה. מוסיף
+ *    בתוך הפוסט הראשון של הנושא הזה בלבד (בלי למחוק את מה שכבר כתוב שם) את כל הווידג'ט: לשוניות קטגוריה (כל
  *    קטגוריה עם ערכת צבע משלה), חיפוש חופשי, סינון לפי עיר, כפתור "הוספת
  *    גמ"ח", ואת רשימת הגמ"חים המאושרים מחולקת לפי עיר. לחיצה על כרטיס
  *    גמ"ח פותחת חלונית פרטים מלאה.
@@ -134,47 +136,45 @@
 		return isAdmin() || (getMyUid() && String(g.submittedBy) === String(getMyUid()));
 	}
 
-	// ============ זיהוי נושא "רשימת גמחים" - לפי מזהה נושא, לא לפי טקסט ============
+	// ============ זיהוי נושא "רשימת גמחים" - לפי הקישור הקבוע, בצד הלקוח בלבד ============
 
-	// במקום לחפש את המילים "רשימת גמחים" בכותרת (זה תפס בטעות גם נושאים
-	// אחרים שסתם הכילו את המילים האלה בכותרת שלהם) - שואלים את השרת פעם אחת
-	// מה ה-tid (מזהה) של הנושא שמכיל את הפוסט הקבוע של רשימת הגמחים (ראו
-	// TARGET_POST_ID/getTargetTopicId ב-library.js), ומשווים מזהה מדויק.
-	// מטמינים בזיכרון (targetTid) - נשאלים את השרת פעם אחת בלבד לכל טעינת עמוד.
-	// כל עוד הבקשה בדרך, קוראים נוספים (למשל onPageChange שרץ שוב מגלילה
-	// אינסופית לפני שהתשובה חזרה) נכנסים לתור ומקבלים תשובה יחד עם הראשון -
-	// לא נשמטים בשקט.
-	var targetTid = null;
-	var pendingTidCallbacks = null;
+	// הקישור הקבוע לנושא "רשימת גמחים" בפורום הזה: https://rechavimzelaze.ovh/post/151093
+	// (אם הנושא הזה אי-פעם יימחק וייווצר מחדש - מעדכנים כאן את מספר הפוסט
+	// החדש, רואים אותו ב-URL: /post/<המספר>, ומדביקים מחדש ב-Custom JS).
+	var TARGET_POST_ID = 151093;
+	// המפתח ש-localStorage שומר תחתיו את ה-tid (מזהה הנושא) שכבר "נלמד" -
+	// ראו isDirectoryTopic למטה.
+	var TID_CACHE_KEY = 'gd-target-tid';
 
-	function withTargetTid(callback) {
-		if (targetTid !== null) {
-			callback(targetTid);
-			return;
-		}
-		if (pendingTidCallbacks) {
-			pendingTidCallbacks.push(callback);
-			return;
-		}
-		var socket = getSocket();
-		if (!socket) {
-			callback(null);
-			return;
-		}
-		pendingTidCallbacks = [callback];
-		socket.emit('plugins.gemachDirectory.getTargetTopicId', {}, function (err, res) {
-			targetTid = (!err && res && res.tid) ? String(res.tid) : '';
-			var callbacks = pendingTidCallbacks || [];
-			pendingTidCallbacks = null;
-			callbacks.forEach(function (cb) { cb(targetTid || null); });
-		});
-	}
-
-	function isDirectoryTopic(tid) {
+	// בעמוד של הנושא עצמו, NodeBB כבר חושף את mainPid (הפוסט הראשון של
+	// הנושא) ב-ajaxify.data - משווים אותו ישירות ל-TARGET_POST_ID, בלי שום
+	// צורך לשאול את השרת משהו. ברגע שיש התאמה, "לומדים" גם את ה-tid של
+	// הנושא הזה (ajaxify.data.tid) ושומרים אותו ב-localStorage - כדי
+	// שגם שורות ברשימות (נושאים אחרונים וכו', שיש להן רק data-tid, לא
+	// מידע על הפוסט הראשון) יוכלו לזהות את השורה הנכונה בלי לשאול שרת.
+	// המשמעות: עד שמישהו (כל אחד, לא רק מנהל) פותח בפעם הראשונה בדפדפן
+	// הזה את נושא הרשימה עצמו - שורות ברשימות עדיין לא מסומנות, וזה
+	// מתעדכן אוטומטית מרגע שזה קורה. הווידג'ט *בתוך* הנושא עצמו כן עובד
+	// מיידית תמיד, בלי תלות בזה.
+	function isDirectoryTopic() {
 		try {
-			return !!tid && String(ajaxify.data && ajaxify.data.tid) === tid;
+			var data = window.ajaxify && ajaxify.data;
+			if (!data) return false;
+			var isMatch = Number(data.mainPid) === TARGET_POST_ID;
+			if (isMatch && data.tid) {
+				try { localStorage.setItem(TID_CACHE_KEY, String(data.tid)); } catch (e) { /* ignore */ }
+			}
+			return isMatch;
 		} catch (e) {
 			return false;
+		}
+	}
+
+	function getCachedTid() {
+		try {
+			return localStorage.getItem(TID_CACHE_KEY) || null;
+		} catch (e) {
+			return null;
 		}
 	}
 
@@ -727,8 +727,8 @@
 		});
 	}
 
-	function injectDirectory(tid) {
-		if (!isDirectoryTopic(tid)) return;
+	function injectDirectory() {
+		if (!isDirectoryTopic()) return;
 		if (document.getElementById(APP_ID)) return;
 
 		var socket = getSocket();
@@ -821,10 +821,8 @@
 
 	function onPageChange() {
 		injectStyles();
-		withTargetTid(function (tid) {
-			injectDirectory(tid);
-			injectListRowButton(tid);
-		});
+		injectDirectory();
+		injectListRowButton(getCachedTid());
 	}
 
 	if (window.$) {
