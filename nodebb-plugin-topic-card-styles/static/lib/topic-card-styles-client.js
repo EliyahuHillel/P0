@@ -379,8 +379,27 @@
 		}
 	});
 
-	function onPageChange() {
+	// חשוב להבדיל בין "מעבר עמוד אמיתי" (action:ajaxify.end - עוברים
+	// מ"נושאים אחרונים" לקטגוריה וכו', NodeBB מחליף את כל תוכן העמוד בלי
+	// רענון) ל"טעינה נוספת באותו עמוד" (action:topics.loaded - גלילה
+	// אינסופית, השורות הקיימות עדיין באותו DOM חי). גילינו (לפי דיווח שנושא
+	// שהיה מוצג נכון בקטגוריה נעלם לגמרי מ"נושאים אחרונים") שכשעוברים בין
+	// עמודים ה-rowRegistry (משתנה גלובלי שנשאר חי כל עוד לא רוענן הדף כולו,
+	// כי זה SPA) המשיך להחזיק רפרנסים ל-wrapper/row הישנים מהעמוד הקודם,
+	// שכבר לא ב-DOM החי. כשאותו נושא הופיע גם בעמוד החדש, ה-entry החדש
+	// התווסף למערך *אחרי* ה-entry הישן (שממשיך להיות ראשון) - וה-logic
+	// שבונה כרטיס רק ל-entry הראשון (idx===0) בנה אותו על ה-wrapper הישן,
+	// המנותק, בעוד שהשורה האמיתית בעמוד החדש רק הוסתרה בלי כרטיס בכלל.
+	// הפתרון: לאפס את rowRegistry לגמרי בכל מעבר עמוד אמיתי (לא בטעינה
+	// נוספת של גלילה אינסופית - שם השורות הקיימות עדיין תקפות).
+	function onFullPageChange() {
+		rowRegistry = {};
 		injectStyles();
+		scanRows();
+		injectTopicToolsMenuItem();
+	}
+
+	function onIncrementalLoad() {
 		scanRows();
 		injectTopicToolsMenuItem();
 	}
@@ -428,10 +447,12 @@
 	bodyObserver.observe(document.body, { childList: true, subtree: true });
 
 	if (window.$) {
-		// action:ajaxify.end - מעבר עמוד רגיל. action:topics.loaded - טעינת
-		// עוד שורות בגלילה אינסופית, בלי מעבר עמוד מלא.
-		$(window).on('action:ajaxify.end action:topics.loaded', onPageChange);
+		// action:ajaxify.end - מעבר עמוד רגיל (מאפס את rowRegistry).
+		// action:topics.loaded - טעינת עוד שורות בגלילה אינסופית, בלי מעבר
+		// עמוד מלא (לא מאפס - השורות הקיימות עדיין תקפות).
+		$(window).on('action:ajaxify.end', onFullPageChange);
+		$(window).on('action:topics.loaded', onIncrementalLoad);
 	}
-	document.addEventListener('DOMContentLoaded', onPageChange);
-	onPageChange();
+	document.addEventListener('DOMContentLoaded', onFullPageChange);
+	onFullPageChange();
 })();
