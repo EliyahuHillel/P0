@@ -158,6 +158,31 @@
 	// נשמר ברשימה, ו-applyRowData מסתיר את כולם ומציג כרטיס רק פעם אחת.
 	var rowRegistry = {};
 
+	// אימתנו בפועל (דרך קונסול הדפדפן, data-tid="11250"): להסתרה
+	// (row.style.setProperty('display','none','important')) יש אלמנט אחד
+	// אמיתי עם data-tcs-enhanced="1" - כלומר הסקריפט כן עיבד אותו - אבל
+	// ה-display המחושב שלו בפועל הוא "flex", לא "none". כלומר ההסתרה כן
+	// הוחלה בזמנו, אבל *משהו אחר* איפס אותה אחר כך (כנראה עדכון בזמן-אמת
+	// של הפורום - צפיות/פוסטים מתעדכנים חי ע"י NodeBB ב-socket, ויכול
+	// להיות שזה גורם לרינדור-מחדש חלקי של השורה שמאפס את ה-style inline
+	// שקבענו). הפתרון: MutationObserver שצופה בשינויים ל-style/class של
+	// השורה, ומחזיר אותה מיידית ל-display:none אם היא אמורה כרגע להיות
+	// מוסתרת אבל משהו החזיר אותה להיות גלויה.
+	function hideRow(row) {
+		row.style.setProperty('display', 'none', 'important');
+	}
+
+	function ensureRowObserver(entry) {
+		if (entry.observer) return;
+		var mo = new MutationObserver(function () {
+			if (entry.forceHidden && entry.row.style.display !== 'none') {
+				hideRow(entry.row);
+			}
+		});
+		mo.observe(entry.row, { attributes: true, attributeFilter: ['style', 'class'] });
+		entry.observer = mo;
+	}
+
 	function applyRowData(tid, rowData) {
 		var entries = rowRegistry[tid];
 		if (!entries || !entries.length) return;
@@ -171,11 +196,9 @@
 			var selectIcon = wrapper.querySelector('.tcs-select-icon');
 
 			if (html) {
-				// setProperty עם 'important' ולא סתם row.style.display='none' -
-				// כי ל-CSS של התבנית יש display עם !important על שורת הנושא,
-				// וזה מנצח style רגיל inline. !important ב-inline מנצח גם
-				// !important ב-stylesheet.
-				row.style.setProperty('display', 'none', 'important');
+				entry.forceHidden = true;
+				hideRow(row);
+				ensureRowObserver(entry);
 				// רק בעותק הראשון בפועל מציגים כרטיס - שאר העותקים (אם יש,
 				// למשל תצוגה כפולה בעמוד קטגוריה) פשוט מוסתרים לגמרי, כדי
 				// שהנושא לא יופיע פעמיים.
@@ -199,6 +222,7 @@
 					if (selectIcon) selectIcon.remove();
 				}
 			} else {
+				entry.forceHidden = false;
 				row.style.removeProperty('display');
 				if (card) card.remove();
 				if (selectIcon) selectIcon.remove();
@@ -243,7 +267,7 @@
 			wrapper.appendChild(row);
 
 			if (!rowRegistry[tid]) rowRegistry[tid] = [];
-			rowRegistry[tid].push({ wrapper: wrapper, row: row });
+			rowRegistry[tid].push({ wrapper: wrapper, row: row, forceHidden: false, observer: null });
 			if (tids.indexOf(tid) === -1) tids.push(tid);
 		});
 
