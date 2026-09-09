@@ -8,10 +8,12 @@
  * הפלאגין דרך socket.io (plugins.gemachDirectory.*), בלי לגעת ב-DB ישירות.
  *
  * מה זה עושה:
- * 1. פותחים נושא (topic) חדש בפורום, עם כותרת שמכילה בדיוק את המילים
- *    "רשימת גמחים" (עם או בלי גרשיים, למשל "רשימת גמ״חים - לחצו להוספה") -
- *    הסקריפט מזהה את הנושא הזה לפי הכותרת, ומוסיף בתוך הפוסט הראשון שלו
- *    (בלי למחוק את מה שכבר כתוב שם) את כל הווידג'ט: לשוניות קטגוריה (כל
+ * 1. יש נושא (topic) קבוע אחד בפורום שמשמש כ"רשימת גמחים" - הסקריפט מזהה
+ *    אותו לפי מזהה נושא מדויק (לא לפי חיפוש טקסט בכותרת - זה היה תופס
+ *    בטעות גם נושאים אחרים שסתם הכילו את המילים "רשימת גמחים"): הוא שואל
+ *    את השרת "מה ה-tid של הנושא שמכיל את TARGET_POST_ID" (הפוסט הקבוע,
+ *    ראו library.js), ומטמין את התשובה. מוסיף בתוך הפוסט הראשון של הנושא
+ *    הזה בלבד (בלי למחוק את מה שכבר כתוב שם) את כל הווידג'ט: לשוניות קטגוריה (כל
  *    קטגוריה עם ערכת צבע משלה), חיפוש חופשי, סינון לפי עיר, כפתור "הוספת
  *    גמ"ח", ואת רשימת הגמ"חים המאושרים מחולקת לפי עיר. לחיצה על כרטיס
  *    גמ"ח פותחת חלונית פרטים מלאה.
@@ -132,20 +134,45 @@
 		return isAdmin() || (getMyUid() && String(g.submittedBy) === String(getMyUid()));
 	}
 
-	// ============ זיהוי נושא "רשימת גמחים" לפי הכותרת ============
+	// ============ זיהוי נושא "רשימת גמחים" - לפי מזהה נושא, לא לפי טקסט ============
 
-	// משאיר רק אותיות עבריות - מוריד כל סוג של גרש/מרכאות (יש כמה תווי
-	// יוניקוד שונים שנראים זהים: ", ', ׳, ״, ", ", וכו'), רווחים, מקפים
-	// וכל תו אחר. כך ההתאמה לא תלויה בדיוק באיזה תו הקלדנו/הודבק.
-	function hebrewLettersOnly(str) {
-		return String(str || '').replace(/[^א-ת]/g, '');
+	// במקום לחפש את המילים "רשימת גמחים" בכותרת (זה תפס בטעות גם נושאים
+	// אחרים שסתם הכילו את המילים האלה בכותרת שלהם) - שואלים את השרת פעם אחת
+	// מה ה-tid (מזהה) של הנושא שמכיל את הפוסט הקבוע של רשימת הגמחים (ראו
+	// TARGET_POST_ID/getTargetTopicId ב-library.js), ומשווים מזהה מדויק.
+	// מטמינים בזיכרון (targetTid) - נשאלים את השרת פעם אחת בלבד לכל טעינת עמוד.
+	// כל עוד הבקשה בדרך, קוראים נוספים (למשל onPageChange שרץ שוב מגלילה
+	// אינסופית לפני שהתשובה חזרה) נכנסים לתור ומקבלים תשובה יחד עם הראשון -
+	// לא נשמטים בשקט.
+	var targetTid = null;
+	var pendingTidCallbacks = null;
+
+	function withTargetTid(callback) {
+		if (targetTid !== null) {
+			callback(targetTid);
+			return;
+		}
+		if (pendingTidCallbacks) {
+			pendingTidCallbacks.push(callback);
+			return;
+		}
+		var socket = getSocket();
+		if (!socket) {
+			callback(null);
+			return;
+		}
+		pendingTidCallbacks = [callback];
+		socket.emit('plugins.gemachDirectory.getTargetTopicId', {}, function (err, res) {
+			targetTid = (!err && res && res.tid) ? String(res.tid) : '';
+			var callbacks = pendingTidCallbacks || [];
+			pendingTidCallbacks = null;
+			callbacks.forEach(function (cb) { cb(targetTid || null); });
+		});
 	}
 
-	function isDirectoryTopic() {
+	function isDirectoryTopic(tid) {
 		try {
-			var title = (window.ajaxify && ajaxify.data && ajaxify.data.title) || '';
-			var lettersOnly = hebrewLettersOnly(title);
-			return lettersOnly.indexOf('רשימ') !== -1 && lettersOnly.indexOf('גמח') !== -1;
+			return !!tid && String(ajaxify.data && ajaxify.data.tid) === tid;
 		} catch (e) {
 			return false;
 		}
@@ -700,8 +727,8 @@
 		});
 	}
 
-	function injectDirectory() {
-		if (!isDirectoryTopic()) return;
+	function injectDirectory(tid) {
+		if (!isDirectoryTopic(tid)) return;
 		if (document.getElementById(APP_ID)) return;
 
 		var socket = getSocket();
@@ -749,15 +776,18 @@
 	// מוסיף עיצוב מיוחד + כפתור "הוספת גמ"ח" ישירות על שורת הנושא "רשימת
 	// גמחים" בכל עמוד רשימה (נושאים אחרונים/קטגוריה/לא נקראו וכו') - בלי
 	// צורך להיכנס לנושא עצמו. עוטף את השורה המקורית (בלי לגעת בתוכן שלה)
-	// בתוך "מסגרת" מודגשת, ומוסיף מתחתיה פס עם הכפתור.
-	function injectListRowButton() {
+	// בתוך "מסגרת" מודגשת, ומוסיף מתחתיה פס עם הכפתור. מזהה את השורה הנכונה
+	// לפי data-tid מדויק (tid) - לא לפי חיפוש טקסט בתוכן השורה.
+	function injectListRowButton(tid) {
+		if (!tid) return;
 		var socket = getSocket();
 		if (!socket) return;
 
-		var rows = document.querySelectorAll('[component="category/topic"]:not([data-gd-enhanced]), li[data-tid]:not([data-gd-enhanced])');
+		var rows = document.querySelectorAll(
+			'[component="category/topic"][data-tid="' + tid + '"]:not([data-gd-enhanced]),' +
+			' li[data-tid="' + tid + '"]:not([data-gd-enhanced])'
+		);
 		rows.forEach(function (row) {
-			var lettersOnly = hebrewLettersOnly(row.textContent || '');
-			if (lettersOnly.indexOf('רשימ') === -1 || lettersOnly.indexOf('גמח') === -1) return;
 			if (!row.parentNode) return;
 			row.setAttribute('data-gd-enhanced', '1');
 
@@ -791,8 +821,10 @@
 
 	function onPageChange() {
 		injectStyles();
-		injectDirectory();
-		injectListRowButton();
+		withTargetTid(function (tid) {
+			injectDirectory(tid);
+			injectListRowButton(tid);
+		});
 	}
 
 	if (window.$) {

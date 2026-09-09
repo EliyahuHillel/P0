@@ -34,6 +34,7 @@
 const db = require.main.require('./src/database');
 const user = require.main.require('./src/user');
 const groups = require.main.require('./src/groups');
+const posts = require.main.require('./src/posts');
 const notifications = require.main.require('./src/notifications');
 const SocketPlugins = require.main.require('./src/socket.io/plugins');
 
@@ -44,10 +45,14 @@ const GEMACH_KEY = id => `gemachDirectory:item:${id}`;
 // מפה של uid -> '0'/'1' - האם המנהל הזה רוצה לקבל התראות על גמ"חים חדשים.
 // חסר מפתח = כברירת מחדל כן (כדי שמנהלים קיימים לא "יפספסו" בלי לשים לב).
 const NOTIFY_PREFS_OBJECT = 'gemachDirectory:notifyPrefs';
-// הנתיב שאליו התראת "גמ"ח חדש ממתין" מפנה - הפוסט האמיתי של נושא "רשימת
-// גמחים" בפורום הזה. אם הנושא אי-פעם יימחק וייווצר מחדש, צריך לעדכן כאן
-// את מספר הפוסט (רואים אותו ב-URL כשפותחים את הנושא: /post/<המספר>).
-const NOTIFY_TARGET_PATH = '/post/151093';
+// מזהה הפוסט האמיתי של נושא "רשימת גמחים" בפורום הזה - זה מזהה הנושא היחיד
+// והקבוע. הלקוח כבר לא מזהה את הנושא/השורות ברשימות לפי חיפוש טקסט "רשימת
+// גמחים" בכותרת (זה תפס בטעות גם פוסטים אחרים שסתם הכילו את המילים האלה) -
+// הוא שואל את השרת "מה ה-tid של הנושא שמכיל את הפוסט הזה" (getTargetTopicId
+// למטה) ומשווה מזהה נושא מדויק. אם הנושא הזה אי-פעם יימחק וייווצר מחדש,
+// צריך לעדכן כאן את מספר הפוסט החדש (רואים אותו ב-URL: /post/<המספר>).
+const TARGET_POST_ID = 151093;
+const NOTIFY_TARGET_PATH = `/post/${TARGET_POST_ID}`;
 
 const MAX_LENGTHS = {
 	name: 120,
@@ -204,6 +209,19 @@ function registerSocketHandlers() {
 		await db.delete(GEMACH_KEY(id));
 
 		return { ok: true };
+	};
+
+	// פתוח לכולם, כולל גולשים לא-מחוברים (הלקוח צריך את זה כדי לזהות נכון את
+	// שורת נושא "רשימת גמחים" בכל רשימה - גם לגולש לא-מחובר). מחזיר את ה-tid
+	// (מזהה הנושא) שמכיל את TARGET_POST_ID, כדי שהלקוח יזהה את הנושא הנכון
+	// לפי מזהה מדויק - לא לפי חיפוש טקסט בכותרת שיכול לתפוס נושאים אחרים
+	// בטעות. מטמין את התוצאה בזיכרון (לא ב-DB) כי זה כמעט אף פעם לא משתנה.
+	let cachedTargetTid = null;
+	SocketPlugins.gemachDirectory.getTargetTopicId = async function () {
+		if (cachedTargetTid === null) {
+			cachedTargetTid = (await posts.getPostField(TARGET_POST_ID, 'tid')) || 0;
+		}
+		return { tid: cachedTargetTid || null };
 	};
 
 	// נקרא מהלקוח כשמנהל נכנס לנושא "רשימת גמחים" עצמו - מסמן כ"נקראו" רק
