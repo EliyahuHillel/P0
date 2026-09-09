@@ -383,6 +383,48 @@
 		injectTopicToolsMenuItem();
 	}
 
+	// גילינו (לפי דיווח שגם MutationObserver על ה-style/class של השורה
+	// הישנה לא פתר את הכפילות, וגם שמספר הצפיות המוצג באותו נושא עלה תוך
+	// כדי שהעמוד פתוח - 251 ואז 253) שהפורום מעדכן שורות "בזמן אמת" (חי,
+	// כשהעמוד כבר פתוח, לא רק בטעינה/ניווט). כנראה NodeBB לא רק *משנה*
+	// את השורה הקיימת בעדכון כזה, אלא ממש *מחליף* אותה (מוחק ומכניס
+	// אלמנט חדש לגמרי במקומה) - וזה בדיוק למה observer שצפה באלמנט הישן
+	// לא תפס כלום: האלמנט הישן פשוט הוצא מה-DOM, וזה שהתחלף בו הוא חדש
+	// ולא מעובד. הפתרון: לצפות בכל הדף (document.body) לכל הוספת אלמנט
+	// חדש, ולסרוק שוב (scanRows) בכל פעם שנוסף אלמנט שנראה כמו שורת נושא -
+	// לא מסתמכים יותר רק על אירועי ניווט של NodeBB (action:ajaxify.end/
+	// action:topics.loaded), שלא קורים בעדכון חי כזה.
+	var scanDebounceTimer = null;
+	function scheduleScan() {
+		if (scanDebounceTimer) return;
+		scanDebounceTimer = setTimeout(function () {
+			scanDebounceTimer = null;
+			scanRows();
+			injectTopicToolsMenuItem();
+		}, 150);
+	}
+
+	function nodeLooksLikeRow(node) {
+		if (node.nodeType !== 1) return false;
+		if (node.matches && (node.matches('[component="category/topic"]') || node.matches('li[data-tid]'))) {
+			return true;
+		}
+		return !!(node.querySelector && node.querySelector('[component="category/topic"], li[data-tid]'));
+	}
+
+	var bodyObserver = new MutationObserver(function (mutations) {
+		for (var m = 0; m < mutations.length; m++) {
+			var added = mutations[m].addedNodes;
+			for (var n = 0; n < added.length; n++) {
+				if (nodeLooksLikeRow(added[n])) {
+					scheduleScan();
+					return;
+				}
+			}
+		}
+	});
+	bodyObserver.observe(document.body, { childList: true, subtree: true });
+
 	if (window.$) {
 		// action:ajaxify.end - מעבר עמוד רגיל. action:topics.loaded - טעינת
 		// עוד שורות בגלילה אינסופית, בלי מעבר עמוד מלא.
