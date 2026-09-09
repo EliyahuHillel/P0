@@ -9,9 +9,11 @@
  * מה זה עושה:
  * 1. בכל עמוד רשימת נושאים (נושאים אחרונים/קטגוריה/לא נקראו וכו') - כל שורת
  *    נושא עוטפת את עצמה ב"עטיפה" (tcs-row-wrapper) בלי לשנות אותה.
- * 2. למנהלים בלבד - קבוע על כל שורה מופיע תפריט נגלל קטן "עיצוב שורה"
- *    עם רשימת העיצובים הזמינים (STYLES למטה - כרגע רק "רגיל" ו"מבחן דרכים").
- *    בחירה שומרת בשרת מיידית ומעדכנת את התצוגה, בלי רענון עמוד.
+ * 2. למנהלים בלבד - מתווסף לתפריט "כלי נושא" הקיים (זה שנפתח כשמסמנים
+ *    נושאים בריבועי הבחירה שלהם, ליד "תיוג נושא" וכו') פריט חדש: "עיצוב:
+ *    מבחן דרכים". לוחצים עליו כשיש נושאים מסומנים - זה מחיל "מבחן דרכים"
+ *    על כולם; לוחצים שוב כשכולם כבר במצב הזה - זה מחזיר את כולם ל"רגיל"
+ *    (טוגל). שומר בשרת מיידית ומעדכן את התצוגה, בלי רענון עמוד.
  * 3. לנושא שנבחר לו עיצוב "מבחן דרכים" - השורה הרגילה של NodeBB מוסתרת
  *    (לא נמחקת - כדי שאפשר יהיה לחזור ל"רגיל" בלי לרענן), ובמקומה מופיע
  *    כרטיס גדול ומעוצב: תמונה אחת גדולה או שתיים (אחת גדולה + אחת קטנה
@@ -22,15 +24,6 @@
  */
 (function () {
 	'use strict';
-
-	// רשימת העיצובים הזמינים - '' = ברירת מחדל/שורה רגילה. כדי להוסיף עיצוב
-	// חדש בעתיד: מוסיפים כאן { id, label } *וגם* ב-KNOWN_STYLES בשרת
-	// (library.js), ומטמיעים את הציור בפועל בפונקציה renderCard למטה לפי
-	// ה-id החדש - ואז מפרסמים מחדש (npm publish + Custom JS).
-	var STYLES = [
-		{ id: '', label: 'רגיל (ברירת מחדל)' },
-		{ id: 'driving-test', label: 'מבחן דרכים' },
-	];
 
 	var STYLE_ID = 'tcs-style';
 
@@ -58,14 +51,6 @@
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
 			+ '.tcs-row-wrapper{position:relative;}'
-			// תפריט בחירת עיצוב - קבוע על כל שורה, למנהלים בלבד. עדין ובהיר,
-			// בלי אייקונים צבעוניים - טקסט פשוט וברור.
-			+ '.tcs-admin-bar{position:absolute;top:-11px;right:10px;z-index:6;display:inline-flex;'
-			+ 'align-items:center;gap:7px;background:#fff;color:#5b5545;padding:4px 10px 4px 6px;'
-			+ 'border:1px solid #e5e0d3;border-radius:14px;font-family:Rubik,Arial,sans-serif;font-size:11px;'
-			+ 'box-shadow:0 3px 9px rgba(30,25,10,.1);}'
-			+ '.tcs-admin-bar select{font-family:inherit;font-size:11px;border:1px solid #e5e0d3;'
-			+ 'background:#faf8f3;color:#332f28;border-radius:8px;padding:3px 6px;cursor:pointer;}'
 			// כרטיס "מבחן דרכים" - עיצוב בהיר, מכובד: לבן/קרם, מסגרת דקה, גוון
 			// זהב-ברונזה עדין לפרטי המותג (תג/מספרים) במקום צהוב בוהק על רקע
 			// כהה. באותו רוחב בדיוק כמו כל שורה אחרת ברשימה (הכרטיס יושב
@@ -153,9 +138,20 @@
 
 	// ============ עדכון שורה ============
 
-	function applyRowData(wrapper, tid, rowData) {
+	// tid -> { wrapper, row } - מחזיקים רפרנס *ישיר* לאלמנטים האמיתיים שכבר
+	// עיבדנו, במקום לחפש אותם מחדש ב-DOM לפי data-tid בכל פעם. זה קריטי:
+	// בעמודי קטגוריה גילינו שחיפוש מחדש (wrapper.querySelector) לפעמים תפס
+	// אלמנט לא נכון (כנראה מבנה DOM שונה מעמוד "נושאים אחרונים"), וכתוצאה
+	// מזה השורה המקורית לא הוסתרה בפועל - "כפילות" מול הכרטיס החדש.
+	// עם רפרנס ישיר זו כבר לא יכולה להיות הבעיה.
+	var rowRegistry = {};
+
+	function applyRowData(tid, rowData) {
+		var entry = rowRegistry[tid];
+		if (!entry) return;
+		var wrapper = entry.wrapper;
+		var row = entry.row;
 		var style = (rowData && rowData.style) || '';
-		var row = wrapper.querySelector('[data-tid="' + tid + '"]');
 		var card = wrapper.querySelector('.tcs-card');
 		var html = style ? renderCard(style, rowData) : null;
 
@@ -164,7 +160,7 @@
 			// לפי מה שראינו בפועל, ל-CSS של התבנית יש display עם !important על
 			// שורת הנושא (כנראה חלק מהגדרת ה-flex/grid שלה), וזה מנצח style
 			// רגיל inline. !important ב-inline מנצח גם !important ב-stylesheet.
-			if (row) row.style.setProperty('display', 'none', 'important');
+			row.style.setProperty('display', 'none', 'important');
 			if (!card) {
 				card = document.createElement('a');
 				card.className = 'tcs-card';
@@ -173,56 +169,20 @@
 			card.href = rowData.url || '#';
 			card.innerHTML = html;
 		} else {
-			if (row) row.style.removeProperty('display');
+			row.style.removeProperty('display');
 			if (card) card.remove();
 		}
-
-		updateAdminBar(wrapper, tid, style);
 	}
 
-	function updateAdminBar(wrapper, tid, currentStyle) {
-		if (!isAdmin()) return;
-		var existing = wrapper.querySelector('.tcs-admin-bar');
-		if (existing) {
-			existing.querySelector('select').value = currentStyle;
-			return;
-		}
-
-		var bar = document.createElement('div');
-		bar.className = 'tcs-admin-bar';
-		bar.innerHTML = '<span>עיצוב שורה</span>'
-			+ '<select>' + STYLES.map(function (s) {
-				return '<option value="' + escapeHtml(s.id) + '"' + (s.id === currentStyle ? ' selected' : '') + '>'
-					+ escapeHtml(s.label) + '</option>';
-			}).join('') + '</select>';
-		wrapper.insertBefore(bar, wrapper.firstChild);
-
-		// עוצר בעד/click/mousedown - כדי שפתיחת/שינוי התפריט לא "ידלוף" ללחיצה
-		// על השורה עצמה שמתחתיו (שהייתה מנווטת לנושא).
-		['click', 'mousedown'].forEach(function (evt) {
-			bar.addEventListener(evt, function (e) { e.stopPropagation(); });
-		});
-
-		bar.querySelector('select').addEventListener('change', function () {
-			var newStyle = this.value;
-			var socket = getSocket();
-			if (!socket) return;
-			socket.emit('plugins.topicCardStyles.setStyle', { tid: tid, style: newStyle }, function (err) {
-				if (err) {
-					window.alert('שגיאה בשמירת העיצוב - נסו שוב.');
-					return;
-				}
-				if (newStyle) {
-					// עיצוב שדורש נתונים (כותרת/תמונות/סטטיסטיקות) - שולפים
-					// אותם עכשיו, רק לשורה הזו.
-					socket.emit('plugins.topicCardStyles.getRowData', { tids: [tid] }, function (err2, dataByTid) {
-						if (err2 || !dataByTid) return;
-						applyRowData(wrapper, tid, dataByTid[tid] || { style: newStyle });
-					});
-				} else {
-					applyRowData(wrapper, tid, { style: '' });
-				}
-			});
+	// רענון "רגעי" לשורה בודדת (נקרא אחרי שינוי עיצוב מתפריט "כלי נושא") -
+	// שולף נתונים טריים ומעדכן את התצוגה שלה מיידית אם היא נמצאת כרגע במסך.
+	function refreshRowIfVisible(tid) {
+		if (!rowRegistry[tid]) return;
+		var socket = getSocket();
+		if (!socket) return;
+		socket.emit('plugins.topicCardStyles.getRowData', { tids: [tid] }, function (err, dataByTid) {
+			if (err || !dataByTid) return;
+			applyRowData(tid, dataByTid[tid] || { style: '' });
 		});
 	}
 
@@ -242,16 +202,10 @@
 
 			var wrapper = document.createElement('div');
 			wrapper.className = 'tcs-row-wrapper';
-			wrapper.setAttribute('data-tcs-wrapper-for', tid);
 			row.parentNode.insertBefore(wrapper, row);
 			wrapper.appendChild(row);
 
-			// תפריט הבחירה למנהל מוצג *מיד*, בלי לחכות לתשובת השרת - כך שהוא
-			// תמיד נראה (ואפשר לדעת שהסקריפט בכלל רץ) גם אם קריאת השרת למטה
-			// עוד לא הצליחה (למשל: הפלאגין בשרת עוד לא הותקן/הופעל). התפריט
-			// עצמו יתעדכן לערך האמיתי ברגע שהתשובה מגיעה.
-			updateAdminBar(wrapper, tid, '');
-
+			rowRegistry[tid] = { wrapper: wrapper, row: row };
 			tids.push(tid);
 		});
 
@@ -263,14 +217,83 @@
 		// נפרדת לכל שורה) - כדי לא להכביד גם בעמודים עם הרבה נושאים.
 		socket.emit('plugins.topicCardStyles.getRowData', { tids: tids }, function (err, dataByTid) {
 			if (err || !dataByTid) {
-				// לא מסתירים כלום - תפריט המנהל כבר מוצג מלמעלה. רק מתעדים
-				// לקונסול כדי שאפשר יהיה לאבחן (למשל: הפלאגין בשרת לא פעיל).
 				if (err) window.console && console.error('[topic-card-styles] getRowData failed:', err);
 				return;
 			}
 			tids.forEach(function (tid) {
-				var wrapper = document.querySelector('.tcs-row-wrapper[data-tcs-wrapper-for="' + tid + '"]');
-				if (wrapper) applyRowData(wrapper, tid, dataByTid[tid] || { style: '' });
+				applyRowData(tid, dataByTid[tid] || { style: '' });
+			});
+		});
+	}
+
+	// ============ שילוב בתפריט "כלי נושא" (בחירה מרובה בעמודי רשימה) ============
+
+	// קורא ישירות מה-DOM אילו נושאים מסומנים כרגע ע"י ריבועי הבחירה
+	// (component="topic/select") - בלי להסתמך על מנגנון פנימי כלשהו של
+	// NodeBB לניהול "מי מסומן" (לא ידוע לנו בדיוק איך זה עובד מבפנים),
+	// פשוט קוראים את מצב האייקונים בפועל ברגע הלחיצה על הפריט שלנו בתפריט.
+	function getSelectedTids() {
+		var tids = [];
+		document.querySelectorAll('[component="topic/select"]').forEach(function (icon) {
+			if ((icon.className || '').indexOf('check') === -1) return; // ריבוע ריק = לא מסומן
+			var row = icon.closest('[data-tid]');
+			if (row) tids.push(row.getAttribute('data-tid'));
+		});
+		return tids;
+	}
+
+	// טוגל: אם *כל* הנושאים המסומנים כבר על "מבחן דרכים" - מחזירים את כולם
+	// ל"רגיל"; אחרת מחילים "מבחן דרכים" על כולם (גם אם חלקם כבר היו).
+	function applyDrivingTestToSelected() {
+		var tids = getSelectedTids();
+		if (!tids.length) {
+			window.alert('בחרו קודם נושא אחד או יותר (ריבוע הבחירה ליד כל שורה) ואז נסו שוב.');
+			return;
+		}
+		var socket = getSocket();
+		if (!socket) return;
+
+		socket.emit('plugins.topicCardStyles.getRowData', { tids: tids }, function (err, dataByTid) {
+			if (err || !dataByTid) return;
+			var allAlreadySet = tids.every(function (tid) {
+				return dataByTid[tid] && dataByTid[tid].style === 'driving-test';
+			});
+			var newStyle = allAlreadySet ? '' : 'driving-test';
+
+			tids.forEach(function (tid) {
+				socket.emit('plugins.topicCardStyles.setStyle', { tid: tid, style: newStyle }, function (err2) {
+					if (err2) return;
+					refreshRowIfVisible(tid);
+				});
+			});
+		});
+	}
+
+	// מוסיף לתפריט "כלי נושא" (נפתח מעל שורות מסומנות בעמודי רשימה) פריט
+	// חדש - "עיצוב: מבחן דרכים" - ליד פריטים קיימים כמו "תיוג נושא". מזהים
+	// את התפריט לפי פריט קיים שכבר נמצא בו (topic/tag), ומוסיפים את שלנו
+	// כ-<li> אח שלו, באותו עיצוב בדיוק. למנהלים בלבד (כמו שאר כלי הנושא).
+	function injectTopicToolsMenuItem() {
+		if (!isAdmin()) return;
+		var tagItems = document.querySelectorAll('[component="topic/tag"]:not([data-tcs-menu-scanned])');
+		tagItems.forEach(function (tagItem) {
+			tagItem.setAttribute('data-tcs-menu-scanned', '1');
+			var existingLi = tagItem.closest('li');
+			if (!existingLi || !existingLi.parentNode) return;
+
+			var li = document.createElement('li');
+			var a = document.createElement('a');
+			a.href = '#';
+			a.setAttribute('role', 'menuitem');
+			a.className = 'dropdown-item rounded-1 d-flex align-items-center gap-2';
+			a.innerHTML = '<i class="fa fa-fw fa-paint-brush text-secondary"></i> עיצוב: מבחן דרכים';
+			li.appendChild(a);
+			existingLi.parentNode.insertBefore(li, existingLi.nextSibling);
+
+			a.addEventListener('click', function (e) {
+				e.preventDefault();
+				e.stopPropagation();
+				applyDrivingTestToSelected();
 			});
 		});
 	}
@@ -278,6 +301,7 @@
 	function onPageChange() {
 		injectStyles();
 		scanRows();
+		injectTopicToolsMenuItem();
 	}
 
 	if (window.$) {
