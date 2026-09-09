@@ -159,15 +159,20 @@
 
 	// ============ עדכון שורה ============
 
-	// tid -> מערך של { wrapper, row } - לא אובייקט בודד! גילינו (לפי דיווח
-	// שהכפילות בעמוד קטגוריה נשארה גם אחרי מעבר לרפרנס ישיר) שבעמודי קטגוריה
-	// לפעמים יש יותר מאלמנט DOM אחד עם אותו data-tid בו-זמנית (למשל תצוגת
-	// מובייל/דסקטופ כפולה של אותה שורה, שרק אחת מהן מוצגת בפועל לפי CSS
-	// רספונסיבי). סריקה קודמת עטפה כל אלמנט כזה בנפרד אבל שמרה ברישום רק
-	// את האחרון מביניהם (כי זה היה מפתח יחיד) - כך שהעותק הראשון נשאר גלוי
-	// לעד, עם השורה המקורית שלו ותיבת הבחירה המקורית שלו. עכשיו כל עותק
-	// נשמר ברשימה, ו-applyRowData מסתיר את כולם ומציג כרטיס רק פעם אחת.
-	var rowRegistry = {};
+	// ויתרנו לגמרי על "זכרון" של רפרנסים ל-DOM (רישום tid -> אלמנטים)
+	// בין קריאות - זה מה שגרם לבאגים הקשים ביותר עד עכשיו: רפרנס שנשמר
+	// יכול "להתיישן" (האלמנט כבר לא ב-DOM החי, למשל אחרי מעבר עמוד ב-SPA),
+	// ותשובה א-סינכרונית מהשרת (getRowData) יכולה להגיע אחרי שהרישום כבר
+	// נוקה/השתנה על ידי קריאה אחרת - מה שגרם לתקלה לסירוגין ("לפעמים מעוצב
+	// לפעמים לא"). הפתרון הנכון: **בלי שום זכרון** - בכל פעם שצריך לעדכן
+	// שורה, שואלים ישירות את ה-DOM החי "מה יש עכשיו בפועל עם ה-tid הזה"
+	// (document.querySelectorAll), ולא סומכים על שום דבר ששמרנו קודם.
+	// כך אין מה "שיתיישן" - אלמנט שכבר לא בעמוד פשוט לא יחזור מהשאילתה.
+	function wrappersForTid(tid) {
+		return Array.prototype.slice.call(
+			document.querySelectorAll('.tcs-row-wrapper[data-tid="' + tid + '"]')
+		);
+	}
 
 	// מסתירים ע"י class (tcs-force-hidden, מוגדר ב-injectStyles עם
 	// !important) ולא ע"י style inline. ניסינו קודם עם style inline
@@ -189,14 +194,14 @@
 	}
 
 	function applyRowData(tid, rowData) {
-		var entries = rowRegistry[tid];
-		if (!entries || !entries.length) return;
+		var wrappers = wrappersForTid(tid);
+		if (!wrappers.length) return;
 		var style = (rowData && rowData.style) || '';
 		var html = style ? renderCard(style, rowData) : null;
 
-		entries.forEach(function (entry, idx) {
-			var wrapper = entry.wrapper;
-			var row = entry.row;
+		wrappers.forEach(function (wrapper, idx) {
+			var row = wrapper.querySelector('[component="category/topic"], li[data-tid]');
+			if (!row) return;
 			var card = wrapper.querySelector('.tcs-card');
 			var selectIcon = wrapper.querySelector('.tcs-select-icon');
 
@@ -235,7 +240,7 @@
 	// רענון "רגעי" לשורה בודדת (נקרא אחרי שינוי עיצוב מתפריט "כלי נושא") -
 	// שולף נתונים טריים ומעדכן את התצוגה שלה מיידית אם היא נמצאת כרגע במסך.
 	function refreshRowIfVisible(tid) {
-		if (!rowRegistry[tid] || !rowRegistry[tid].length) return;
+		if (!wrappersForTid(tid).length) return;
 		var socket = getSocket();
 		if (!socket) return;
 		socket.emit('plugins.topicCardStyles.getRowData', { tids: [tid] }, function (err, dataByTid) {
@@ -268,8 +273,6 @@
 			row.parentNode.insertBefore(wrapper, row);
 			wrapper.appendChild(row);
 
-			if (!rowRegistry[tid]) rowRegistry[tid] = [];
-			rowRegistry[tid].push({ wrapper: wrapper, row: row });
 			if (tids.indexOf(tid) === -1) tids.push(tid);
 		});
 
@@ -379,27 +382,8 @@
 		}
 	});
 
-	// חשוב להבדיל בין "מעבר עמוד אמיתי" (action:ajaxify.end - עוברים
-	// מ"נושאים אחרונים" לקטגוריה וכו', NodeBB מחליף את כל תוכן העמוד בלי
-	// רענון) ל"טעינה נוספת באותו עמוד" (action:topics.loaded - גלילה
-	// אינסופית, השורות הקיימות עדיין באותו DOM חי). גילינו (לפי דיווח שנושא
-	// שהיה מוצג נכון בקטגוריה נעלם לגמרי מ"נושאים אחרונים") שכשעוברים בין
-	// עמודים ה-rowRegistry (משתנה גלובלי שנשאר חי כל עוד לא רוענן הדף כולו,
-	// כי זה SPA) המשיך להחזיק רפרנסים ל-wrapper/row הישנים מהעמוד הקודם,
-	// שכבר לא ב-DOM החי. כשאותו נושא הופיע גם בעמוד החדש, ה-entry החדש
-	// התווסף למערך *אחרי* ה-entry הישן (שממשיך להיות ראשון) - וה-logic
-	// שבונה כרטיס רק ל-entry הראשון (idx===0) בנה אותו על ה-wrapper הישן,
-	// המנותק, בעוד שהשורה האמיתית בעמוד החדש רק הוסתרה בלי כרטיס בכלל.
-	// הפתרון: לאפס את rowRegistry לגמרי בכל מעבר עמוד אמיתי (לא בטעינה
-	// נוספת של גלילה אינסופית - שם השורות הקיימות עדיין תקפות).
-	function onFullPageChange() {
-		rowRegistry = {};
+	function onPageChange() {
 		injectStyles();
-		scanRows();
-		injectTopicToolsMenuItem();
-	}
-
-	function onIncrementalLoad() {
 		scanRows();
 		injectTopicToolsMenuItem();
 	}
@@ -447,12 +431,13 @@
 	bodyObserver.observe(document.body, { childList: true, subtree: true });
 
 	if (window.$) {
-		// action:ajaxify.end - מעבר עמוד רגיל (מאפס את rowRegistry).
-		// action:topics.loaded - טעינת עוד שורות בגלילה אינסופית, בלי מעבר
-		// עמוד מלא (לא מאפס - השורות הקיימות עדיין תקפות).
-		$(window).on('action:ajaxify.end', onFullPageChange);
-		$(window).on('action:topics.loaded', onIncrementalLoad);
+		// action:ajaxify.end - מעבר עמוד רגיל. action:topics.loaded - טעינת
+		// עוד שורות בגלילה אינסופית, בלי מעבר עמוד מלא. בלי שום זכרון
+		// (rowRegistry) שצריך לאפס בין השניים - scanRows מדלג ממילא על
+		// שורות שכבר מעובדות (data-tcs-enhanced), ו-applyRowData שואל תמיד
+		// את ה-DOM החי ישירות - כך שאין הבדל אמיתי בין שני סוגי האירועים.
+		$(window).on('action:ajaxify.end action:topics.loaded', onPageChange);
 	}
-	document.addEventListener('DOMContentLoaded', onFullPageChange);
-	onFullPageChange();
+	document.addEventListener('DOMContentLoaded', onPageChange);
+	onPageChange();
 })();
