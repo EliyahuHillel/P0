@@ -54,6 +54,17 @@
 		if (document.getElementById(STYLE_ID)) return;
 		var css = ''
 			+ '.tcs-row-wrapper{position:relative;}'
+				// מסתירים את השורה המקורית ע"י class עם !important בגיליון
+				// הסגנונות שלנו - לא ע"י style inline. גילינו שמשהו (כנראה
+				// NodeBB עצמו) לפעמים קובע row.style.display='none' *בלי*
+				// !important אחרי ההסתרה שלנו, מה שהשאיר את הערך "none" אבל
+				// ביטל את העדיפות שלו - וכלל CSS אחר עם !important ניצח בפועל
+				// (השורה נשארה גלויה בפועל למרות שה-inline "אמר" none). לפי
+				// כללי ה-CSS, inline *לא-important* אף פעם לא מנצח stylesheet
+				// *עם* important - אז class עם !important חסין לחלוטין מהבעיה
+				// הזו, בלי צורך לבדוק/לתקן שוב ושוב (מה שגרם לקפיצות גלילה
+				// בעמוד קטגוריה שבו כל הנושאים מעוצבים בו-זמנית).
+				+ '.tcs-force-hidden{display:none!important;}'
 			// כרטיס "מבחן דרכים" - עיצוב בהיר, מכובד: לבן/קרם, מסגרת דקה, גוון
 			// זהב-ברונזה עדין לפרטי המותג (תג/מספרים) במקום צהוב בוהק על רקע
 			// כהה. באותו רוחב בדיוק כמו כל שורה אחרת ברשימה (הכרטיס יושב
@@ -158,55 +169,24 @@
 	// נשמר ברשימה, ו-applyRowData מסתיר את כולם ומציג כרטיס רק פעם אחת.
 	var rowRegistry = {};
 
-	// אימתנו בפועל (דרך קונסול הדפדפן, data-tid="11250"): להסתרה
-	// (row.style.setProperty('display','none','important')) יש אלמנט אחד
-	// אמיתי עם data-tcs-enhanced="1" - כלומר הסקריפט כן עיבד אותו - אבל
-	// ה-display המחושב שלו בפועל הוא "flex", לא "none". כלומר ההסתרה כן
-	// הוחלה בזמנו, אבל *משהו אחר* איפס אותה אחר כך (כנראה עדכון בזמן-אמת
-	// של הפורום - צפיות/פוסטים מתעדכנים חי ע"י NodeBB ב-socket, ויכול
-	// להיות שזה גורם לרינדור-מחדש חלקי של השורה שמאפס את ה-style inline
-	// שקבענו). הפתרון: MutationObserver שצופה בשינויים ל-style/class של
-	// השורה, ומחזיר אותה מיידית ל-display:none אם היא אמורה כרגע להיות
-	// מוסתרת אבל משהו החזיר אותה להיות גלויה.
+	// מסתירים ע"י class (tcs-force-hidden, מוגדר ב-injectStyles עם
+	// !important) ולא ע"י style inline. ניסינו קודם עם style inline
+	// (+ MutationObserver + בדיקה תקופתית שמתקנים את זה שוב ושוב) כי גילינו
+	// שמשהו (כנראה NodeBB עצמו) קובע row.style.display='none' *בלי*
+	// !important אחרי ההסתרה שלנו - מה שמנצח את ה-!important שקבענו כי זה
+	// דורס את כל התכונה display מחדש. אבל התיקון ההוא (לתקן שוב ושוב) גרם
+	// לבעיה חדשה - קפיצות גלילה בעמוד קטגוריה שבו הרבה נושאים מעוצבים
+	// בו-זמנית (כל תיקון היה משנה display שוב ושוב). הפתרון הנכון: class עם
+	// !important *בגיליון הסגנונות* - לפי כללי ה-CSS, style inline לא-important
+	// אף פעם לא מנצח stylesheet rule עם important, לא משנה מה סדר הפעולות -
+	// כך שאין יותר "קרב" בכלל, ואין צורך לבדוק/לתקן שוב ושוב.
 	function hideRow(row) {
-		row.style.setProperty('display', 'none', 'important');
+		row.classList.add('tcs-force-hidden');
 	}
 
-	// חשוב: בודקים getComputedStyle (התוצאה שבאמת מוצגת), לא row.style.display
-	// - כי גילינו שמשהו קובע row.style.display='none' *בלי* !important אחרי
-	// שההסתרה שלנו כבר הוחלה. זה משאיר את הערך "none" (אז row.style.display
-	// עדיין היה נראה "תקין" אם היינו בודקים רק אותו) אבל בלי ה-!important -
-	// כך שכלל CSS עם !important בגיליון הסגנונות (למשל על class="selected")
-	// מנצח בפועל, וה-computed display האמיתי הוא "flex" למרות שהמחרוזת
-	// אומרת "none". getComputedStyle הוא היחיד שמשקף את המצב האמיתי.
-	function isActuallyHidden(row) {
-		return getComputedStyle(row).display === 'none';
+	function showRow(row) {
+		row.classList.remove('tcs-force-hidden');
 	}
-
-	function ensureRowObserver(entry) {
-		if (entry.observer) return;
-		var mo = new MutationObserver(function () {
-			if (entry.forceHidden && !isActuallyHidden(entry.row)) {
-				hideRow(entry.row);
-			}
-		});
-		mo.observe(entry.row, { attributes: true, attributeFilter: ['style', 'class'] });
-		entry.observer = mo;
-	}
-
-	// רשת ביטחון אחרונה: גם אם ה-MutationObserver מפספס איכשהו את הרגע
-	// שבו ההסתרה מתבטלת (למשל אם זה קורה בדרך שלא נוגעת ב-style/class של
-	// האלמנט עצמו) - בדיקה תקופתית כל שנייה על כל השורות שאמורות כרגע
-	// להיות מוסתרות, ותיקון מיידי אם משהו החזיר אותן להיות גלויות.
-	setInterval(function () {
-		Object.keys(rowRegistry).forEach(function (tid) {
-			rowRegistry[tid].forEach(function (entry) {
-				if (entry.forceHidden && !isActuallyHidden(entry.row)) {
-					hideRow(entry.row);
-				}
-			});
-		});
-	}, 1000);
 
 	function applyRowData(tid, rowData) {
 		var entries = rowRegistry[tid];
@@ -221,9 +201,7 @@
 			var selectIcon = wrapper.querySelector('.tcs-select-icon');
 
 			if (html) {
-				entry.forceHidden = true;
 				hideRow(row);
-				ensureRowObserver(entry);
 				// רק בעותק הראשון בפועל מציגים כרטיס - שאר העותקים (אם יש,
 				// למשל תצוגה כפולה בעמוד קטגוריה) פשוט מוסתרים לגמרי, כדי
 				// שהנושא לא יופיע פעמיים.
@@ -247,8 +225,7 @@
 					if (selectIcon) selectIcon.remove();
 				}
 			} else {
-				entry.forceHidden = false;
-				row.style.removeProperty('display');
+				showRow(row);
 				if (card) card.remove();
 				if (selectIcon) selectIcon.remove();
 			}
@@ -292,7 +269,7 @@
 			wrapper.appendChild(row);
 
 			if (!rowRegistry[tid]) rowRegistry[tid] = [];
-			rowRegistry[tid].push({ wrapper: wrapper, row: row, forceHidden: false, observer: null });
+			rowRegistry[tid].push({ wrapper: wrapper, row: row });
 			if (tids.indexOf(tid) === -1) tids.push(tid);
 		});
 
