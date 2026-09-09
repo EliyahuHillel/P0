@@ -84,9 +84,10 @@
 			+ '.tcs-images-one .tcs-img-main{width:100%;height:100%;}'
 			+ '.tcs-images-two .tcs-img-main{width:66%;height:100%;}'
 			+ '.tcs-images-two .tcs-img-side{width:34%;height:100%;}'
-			+ '.tcs-body{padding:16px 18px 14px;}'
+			+ '.tcs-title-bar{padding:15px 20px 13px;text-align:center;border-bottom:1px solid #f1ede2;}'
 			+ '.tcs-title{font-family:"Frank Ruhl Libre",serif;font-size:18.5px;font-weight:700;color:#28241c;'
-			+ 'line-height:1.5;margin-bottom:14px;}'
+			+ 'line-height:1.5;}'
+			+ '.tcs-body{padding:16px 18px 14px;}'
 			+ '.tcs-stats{display:flex;gap:8px;}'
 			+ '.tcs-stat{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;'
 			+ 'background:#faf8f3;border:1px solid #ece6d6;border-radius:7px;padding:8px 4px 7px;}'
@@ -131,9 +132,10 @@
 			imagesHtml = '<div class="tcs-images tcs-images-none">' + badgeHtml + '</div>';
 		}
 
-		return imagesHtml
+		// הכותרת עכשיו למעלה וממורכזת, מעל התמונה - לא בגוף שמתחת לה.
+		return '<div class="tcs-title-bar"><div class="tcs-title">' + escapeHtml(rowData.title || '') + '</div></div>'
+			+ imagesHtml
 			+ '<div class="tcs-body">'
-			+ '<div class="tcs-title">' + escapeHtml(rowData.title || '') + '</div>'
 			+ '<div class="tcs-stats">'
 			+ statTileHTML(rowData.views, 'צפיות')
 			+ statTileHTML(rowData.posts, 'פוסטים')
@@ -158,7 +160,11 @@
 		var html = style ? renderCard(style, rowData) : null;
 
 		if (html) {
-			if (row) row.style.display = 'none';
+			// setProperty עם 'important' ולא סתם row.style.display='none' - כי
+			// לפי מה שראינו בפועל, ל-CSS של התבנית יש display עם !important על
+			// שורת הנושא (כנראה חלק מהגדרת ה-flex/grid שלה), וזה מנצח style
+			// רגיל inline. !important ב-inline מנצח גם !important ב-stylesheet.
+			if (row) row.style.setProperty('display', 'none', 'important');
 			if (!card) {
 				card = document.createElement('a');
 				card.className = 'tcs-card';
@@ -167,7 +173,7 @@
 			card.href = rowData.url || '#';
 			card.innerHTML = html;
 		} else {
-			if (row) row.style.display = '';
+			if (row) row.style.removeProperty('display');
 			if (card) card.remove();
 		}
 
