@@ -118,6 +118,15 @@ function registerSocketHandlers() {
 		return getGemachsFromSet(APPROVED_SET, true);
 	};
 
+	// האם המשתמש המחובר רשאי לערוך/למחוק *כל* גמ"ח (לא רק את שלו) - מנהל
+	// או חבר באחת מ-EDITOR_GROUPS. הלקוח קורא לזה פעם אחת כדי לדעת אם
+	// להציג בכלל את כפתורי העריכה/מחיקה על גמ"חים שהעלה מישהו אחר - ההרשאה
+	// האמיתית עדיין נבדקת בנפרד בשרת בכל קריאת edit/remove בפועל (requireOwnerOrAdmin),
+	// זה רק קובע מה הלקוח *מציג*.
+	SocketPlugins.gemachDirectory.canManageAny = async function (socket) {
+		return { canManageAny: await isEditorOrAdmin(socket.uid) };
+	};
+
 	// רשימת הגמ"חים הממתינים לאישור - מנהלים בלבד.
 	SocketPlugins.gemachDirectory.listPending = async function (socket) {
 		await requireAdmin(socket);
@@ -314,16 +323,25 @@ async function requireAdmin(socket) {
 // שהוא מוגדר ב-ACP -> ניהול -> קבוצות (רגיש לרווחים/איות).
 const EDITOR_GROUPS = ['מגיהים', 'סיירת פיקוח'];
 
+// מנהל, או חבר באחת מ-EDITOR_GROUPS - משותף גם לבדיקת ההרשאה עצמה בשרת
+// (requireOwnerOrAdmin) וגם לשאילתה שהלקוח שולח כדי לדעת אם להציג בכלל
+// את כפתורי העריכה/מחיקה על גמ"חים של אחרים (ראו canManageAny למטה).
+async function isEditorOrAdmin(uid) {
+	if (!uid) return false;
+	const isAdmin = await user.isAdministrator(uid);
+	if (isAdmin) return true;
+	for (const groupName of EDITOR_GROUPS) {
+		if (await groups.isMember(uid, groupName)) return true;
+	}
+	return false;
+}
+
 // מרשה גישה רק למי שהעלה את הגמ"ח הזה (submittedBy), למנהל, או לחבר
 // באחת מ-EDITOR_GROUPS.
 async function requireOwnerOrAdmin(socket, gemach) {
 	requireLogin(socket);
 	if (String(gemach.submittedBy) === String(socket.uid)) return;
-	const isAdmin = await user.isAdministrator(socket.uid);
-	if (isAdmin) return;
-	for (const groupName of EDITOR_GROUPS) {
-		if (await groups.isMember(socket.uid, groupName)) return;
-	}
+	if (await isEditorOrAdmin(socket.uid)) return;
 	throw new Error('[[error:no-privileges]]');
 }
 

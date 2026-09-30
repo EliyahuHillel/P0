@@ -131,9 +131,25 @@
 		}
 	}
 
-	// בעל הגמ"ח (מי שהעלה אותו) או מנהל - אלה היחידים שרשאים לערוך/למחוק.
+	// האם המשתמש המחובר רשאי לערוך/למחוק *כל* גמ"ח, לא רק את שלו - נטען
+	// פעם אחת מהשרת (ראו refreshCanManageAny) כי זה תלוי בחברות בקבוצות
+	// כמו "מגיהים"/"סיירת פיקוח" שאין לנו גישה אליהן ישירות בצד הלקוח
+	// (בניגוד ל-app.user.isAdmin, שכבר חשוף מוכן). ברירת המחדל false -
+	// עד שהתשובה מהשרת חוזרת, לא מוצגים כפתורי עריכה/מחיקה על גמ"ח של אחר.
+	var canManageAnyCache = false;
+
+	function refreshCanManageAny(socket, callback) {
+		socket.emit('plugins.gemachDirectory.canManageAny', {}, function (err, res) {
+			canManageAnyCache = !!(res && res.canManageAny);
+			if (callback) callback();
+		});
+	}
+
+	// בעל הגמ"ח (מי שהעלה אותו), מנהל, או חבר בקבוצת עריכה (מגיהים/סיירת
+	// פיקוח) - אלה היחידים שרשאים לערוך/למחוק. ההרשאה האמיתית תמיד נבדקת
+	// גם בשרת בפועל - זה רק קובע מה מוצג בממשק.
 	function canManage(g) {
-		return isAdmin() || (getMyUid() && String(g.submittedBy) === String(getMyUid()));
+		return canManageAnyCache || isAdmin() || (getMyUid() && String(g.submittedBy) === String(getMyUid()));
 	}
 
 	// ============ זיהוי נושא "רשימת גמחים" - לפי הקישור הקבוע, בצד הלקוח בלבד ============
@@ -764,6 +780,7 @@
 
 		loadApprovedList(app, socket);
 		loadPendingPanel(app, socket);
+		refreshCanManageAny(socket);
 
 		// מנהל שנכנס לנושא כבר רואה את כל הבקשות הממתינות בעמוד הזה עצמו -
 		// אז ההתראות (הפעמון) של "גמ"ח חדש ממתין" מתאפסות אוטומטית. נוגע
