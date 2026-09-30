@@ -20,8 +20,9 @@
  *   קרדיט ("מאת @שם") ולדעת אם המשתמש המחובר הוא הבעלים.
  * - עריכה/מחיקה (SocketPlugins.gemachDirectory.edit/remove) פתוחים למי
  *   שהעלה את הגמ"ח (נבדק לפי socket.uid מול השדה submittedBy שנשמר בזמן
- *   ההעלאה - אי אפשר לזייף) *או* למנהל - מנהל יכול לערוך/למחוק כל גמ"ח,
- *   משתמש רגיל רק את שלו.
+ *   ההעלאה - אי אפשר לזייף), למנהל, או לחבר בקבוצת "מגיהים"/"סיירת פיקוח"
+ *   (ראו EDITOR_GROUPS) - כל אלה יכולים לערוך/למחוק כל גמ"ח, משתמש רגיל
+ *   רק את שלו.
  *
  * חלק הלקוח (הצגת הרשימה, הטופס להוספה, פאנל האישור למנהל) *לא* נמצא כאן -
  * הוא קובץ נפרד (gemach-directory-client.js) שמודבק ב-Custom JS של הפורום,
@@ -308,14 +309,22 @@ async function requireAdmin(socket) {
 	}
 }
 
-// מרשה גישה רק למי שהעלה את הגמ"ח הזה (submittedBy) או למנהל.
+// קבוצות שמקבלות את אותה הרשאת עריכה/מחיקה שיש למנהלים (בנוסף למנהלים
+// עצמם) - לפי בקשת המנהל. השמות חייבים להיות תואמים בדיוק לשם הקבוצה כפי
+// שהוא מוגדר ב-ACP -> ניהול -> קבוצות (רגיש לרווחים/איות).
+const EDITOR_GROUPS = ['מגיהים', 'סיירת פיקוח'];
+
+// מרשה גישה רק למי שהעלה את הגמ"ח הזה (submittedBy), למנהל, או לחבר
+// באחת מ-EDITOR_GROUPS.
 async function requireOwnerOrAdmin(socket, gemach) {
 	requireLogin(socket);
 	if (String(gemach.submittedBy) === String(socket.uid)) return;
 	const isAdmin = await user.isAdministrator(socket.uid);
-	if (!isAdmin) {
-		throw new Error('[[error:no-privileges]]');
+	if (isAdmin) return;
+	for (const groupName of EDITOR_GROUPS) {
+		if (await groups.isMember(socket.uid, groupName)) return;
 	}
+	throw new Error('[[error:no-privileges]]');
 }
 
 // חיתוך אורך + הסרת תווי בקרה - הגנת שרת בסיסית. ההגנה האמיתית מפני
